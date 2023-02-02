@@ -28,24 +28,24 @@ class NWISFrame:
         Start date to being downloading data. e.g. "2022-01-01"
     end_date : str
         End date to being downloading data.  e.g. "2022-01-05"
-    param : str, optional
+    param : str
         Parameter to download, e.g. "00060" retrieves dischage data.
-    service : str, optional
-        Currently only "iv" service is implemented.  Instantanious, "iv" or Daily Value, "dv" , by default "iv"
-    access : int, optional
-        Data access level.  0=public, 1=coop, 2=USGS internal, by default 0
+    service : str, optional, by default "iv"
+        Currently only "iv" service is implemented.  Instantanious, "iv" or Daily Value, "dv"
+    access : int, optional, by default 0
+        Data access level.  0=public, 1=coop, 2=USGS internal
         Options 1 and 2 require USGS network access.
-    gap_tol : str, optional
-        Gap tolerance to check for missing values in time-series, by default "15min"
+    gap_tol : str, optional, by default "15min"
+        Gap tolerance to check for missing values in time-series
         Use "H" for hourly data and "D" for daily data.
         Sets self.gap_flag as True when gaps are found.
         For more information and valid parameters: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
-    gap_fill : bool, optional
-        Set True to fill data gaps as defined by gap_tol, by default False
+    gap_fill : bool, optional, by default False
+        Set True to fill data gaps as defined by gap_tol
         Gaps are filled with NaN values.
-    resolve_masking : bool, optional
+    resolve_masking : bool, optional, by default False
         Set True to resolve NWIS masking of Ice qualified data to NaN values.
-        By default, NWIS serves public data with an Ice qualifier as masked -999999 values.
+        NWIS serves public data with an Ice qualifier as -999999 masked values.
         Setting access to 1 "coop" or 2 "internal" returns actual values.
 
     Notes
@@ -167,6 +167,7 @@ class NWISFrame:
         repr_table.add_row("Qualifier", str(self.qualifier_flag))
         repr_table.add_row("Gaps", str(self.gap_flag))
         repr_table.add_row("Gap fill", str(self.gap_fill))
+        repr_table.add_row("Resolve masking", str(self.resolve_masking))
         repr_table.add_row("__repr__", self.__repr__())
         yield repr_table
 
@@ -179,7 +180,7 @@ class NWISFrame:
         service: str,
         access: int,
     ) -> Tuple:
-        """Retrieve time-series data from nwis.waterservices.usgs.gov
+        """Retrieve time-series data and metadata from nwis.waterservices.usgs.gov
 
         Parameters
         ----------
@@ -213,6 +214,10 @@ class NWISFrame:
         jdata = json.loads(response.text)
 
         data_frame = pd.json_normalize(jdata["value"]["timeSeries"][0]["values"][0], ["value"])
+        if data_frame.empty is True:
+            print(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
+            raise SystemExit
+
         data_frame.columns = data_frame.columns.str.lower()
         data_frame = data_frame.set_index(self._df_time_helper(data_frame))
         data_frame["value"] = pd.to_numeric(data_frame["value"])
@@ -233,9 +238,19 @@ class NWISFrame:
     def resolve_masks(self) -> None:
         """Void function.  Convert any values from -999999 to NaN values.
         See NWISFrame resolve_masking parameter docstring for further information.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
         """
+
         self.data["value"] = self.data["value"].where(self.data["value"] != -999999.0, np.NaN)
-        return
+        self.resolve_masking = True
+        return None
 
     def check_quals(
         self,
@@ -280,17 +295,21 @@ class NWISFrame:
         ----------
         interval : str | None, optional
             Override for self.gap_tol set in __init__, by default None, if None, fallback on self.gap_tol, by default 15min
+
+        Returns
+        -------
+        None
         """
         if interval is None:
             interval = self.gap_tol
         idx = pd.date_range(self.start_date, self.end_date, freq=interval)
         if idx.difference(self.data.index).empty:
             self.gap_flag = False
-            return
+            return None
 
         print(f"Gaps detected at: {self.STAID}")
         self.gap_flag = True
-        return
+        return None
 
     def fill_gaps(
         self,
@@ -302,13 +321,17 @@ class NWISFrame:
         ----------
         interval : str | None, optional
             Override for self.gap_tol set in __init__, by default None, if None, fallback on self.gap_tol, by default 15min
+
+        Returns
+        -------
+        None
         """
         if interval is None:
             interval = self.gap_tol
         self.data = self.data.asfreq(freq=interval)
         self.check_gaps(self.gap_tol)
         self.gap_fill = True
-        return
+        return None
 
     def _df_time_helper(self, data: pd.DataFrame) -> pd.DatetimeIndex:
         """Helper function to convert datetime to DatetimeIndex.
@@ -328,5 +351,5 @@ class NWISFrame:
         return resample_data
 
 
-data = NWISFrame(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", resolve_masking=True)
+data = NWISFrame(STAID="12323233", start_date="2022-11-10", end_date="2022-11-12", param="63680", access="0", resolve_masking=False)
 pause = 2
