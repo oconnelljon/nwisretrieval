@@ -88,8 +88,8 @@ class NWISFrame:
         self.url = self.station_info.get("query_url", "empyty")
         self.site_name = self.station_info.get("site_name", "empyty")
         self.var_description = self.station_info.get("var_description", "empyty")
-        self.approval_flag = self.station_info.get("approval_flag", "empyty")
-        self.qualifier_flag = self.station_info.get("qualifier_flag", "empyty")
+        self.approval_level = self.check_approval()
+        self.qualifier_flag = self.check_quals()
         self.gap_flag = False
         self.check_gaps(interval=self.gap_tol)
         if gap_fill:
@@ -163,7 +163,7 @@ class NWISFrame:
         repr_table.add_row("Parameter", self.param)
         repr_table.add_row("Latitude", str(self.dec_lat))
         repr_table.add_row("Longitude", str(self.dec_long))
-        repr_table.add_row("Approval level", str(self.approval_flag))
+        repr_table.add_row("Approval level", str(self.approval_level))
         repr_table.add_row("Qualifier", str(self.qualifier_flag))
         repr_table.add_row("Gaps", str(self.gap_flag))
         repr_table.add_row("Gap fill", str(self.gap_fill))
@@ -221,7 +221,7 @@ class NWISFrame:
         data_frame.columns = data_frame.columns.str.lower()
         data_frame = data_frame.set_index(self._df_time_helper(data_frame))
         data_frame["value"] = pd.to_numeric(data_frame["value"])
-        approval_flag, qualifier_flag = self.check_quals(data=data_frame, qualifier_col="qualifiers")
+        # approval_flag, qualifier_flag = self.check_quals(data=data_frame, qualifier_col="qualifiers")
 
         station_info = {
             "query_url": url,
@@ -229,8 +229,8 @@ class NWISFrame:
             "dec_lat": jdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"],
             "dec_long": jdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
             "va_description": jdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
-            "approval_flag": approval_flag,
-            "qualifier_flag": qualifier_flag,
+            # "approval_flag": approval_flag,
+            # "qualifier_flag": qualifier_flag,
         }
         del data_frame["datetime"]
         return data_frame, station_info
@@ -252,38 +252,49 @@ class NWISFrame:
         self.resolve_masking = True
         return None
 
-    def check_quals(
-        self,
-        data: pd.DataFrame,
-        qualifier_col: str = "qualifiers",
-    ) -> Tuple:
-        """Checks approval level and if qualifiers are applied to data.
+    def check_quals(self) -> str:
+        """Checks if qualifiers are applied to data.
 
         Parameters
         ----------
-        data : pd.DataFrame
-            DataFrame containing data to check.
-        qualifier_col : str, optional
-            Column name containing qualifer information, by default "qualifiers" for NWIS data.
+        None
 
         Returns
         -------
-        Tuple
-            (Approval level: "Approved" or "Provisional", Qualifier: "None" or "Ice" at the moment.)
+        str
+            Returns "Ice" if ANY record has an ice qualifier.
 
         Notes
         -----
         Currently only checking for Ice qualifiers.  May need to add more for equipment malfunctions, etc.
         """
-        approval = "Approved"
-        ice = "None"
-        unique_quals = list(pd.unique(data[qualifier_col].apply(frozenset)))
-        for f_set in unique_quals:
-            if "P" in f_set:
-                approval = "Provisional"
-            if "Ice" in f_set or "i" in f_set:
-                ice = "Ice"
-        return approval, ice
+        unique_quals = list(pd.unique(self.data["qualifiers"].apply(frozenset)))
+        for qual in unique_quals:
+            if "Ice" in qual or "i" in qual:
+                return "Ice"
+        return "None"
+
+    def check_approval(self) -> str:
+        """Checks approval level of data.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        str
+            Return "Provisional" or "Approved".
+            If ANY records are provisional, set to "Provisional" level.
+
+        Notes
+        -----
+        """
+        unique_quals = list(pd.unique(self.data["qualifiers"].apply(frozenset)))
+        return next(
+            ("Provisional" for approval in unique_quals if "P" in approval),
+            "Approved",
+        )
 
     def check_gaps(
         self,
@@ -351,5 +362,8 @@ class NWISFrame:
         return resample_data
 
 
-# data = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", access=0, resolve_masking=False)
-# pause = 2
+data_ice = NWISFrame(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", access=0, resolve_masking=False)
+print(data_ice)
+data_gaps = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", access=0, resolve_masking=False)
+print(data_gaps)
+pause = 2
