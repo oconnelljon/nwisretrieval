@@ -15,7 +15,7 @@ from rich.table import Table
 
 class NWISFrame:
     """
-    Container for time-series data downloaded from NWIS (https://nwis.waterservices.usgs.gov/)
+    Container for time-series data downloaded from NWIS: https://nwis.waterservices.usgs.gov/
 
     Provides a pandas dataframe of time-series data for a single parameter from a single site and accompanying metadata.
     Supports rich!
@@ -51,10 +51,10 @@ class NWISFrame:
     Notes
     -----
     Returned metadata:
+        site_name = Station name
+        url = Query URL
         dec_lat = Decimal latitude
         dec_long = Decimal longitude
-        url = Query URL
-        site_name = Station name
         var_description = Queried parameter description.
         approval_flag = Provisional if any queried data is provisional, else data has been Approved.
         qualifier_flag = None if no qualifiers present, otherwise just checks for ICE at the moment.  Need to include other qualifiers.
@@ -83,13 +83,13 @@ class NWISFrame:
         self.gap_fill = gap_fill
         self.resolve_masking = resolve_masking
         self.data, self.station_info = self.getNWIS(self.STAID, self.start_date, self.end_date, self.param, self.service, self.access)
-        self.dec_lat = self.station_info.get("dec_lat")
-        self.dec_long = self.station_info.get("dec_long")
-        self.url = self.station_info.get("query_url")
-        self.site_name = self.station_info.get("site_name")
-        self.var_description = self.station_info.get("var_description")
-        self.approval_flag = self.station_info.get("approval_flag")
-        self.qualifier_flag = self.station_info.get("qualifier_flag")
+        self.dec_lat = self.station_info.get("dec_lat", "empyty")
+        self.dec_long = self.station_info.get("dec_long", "empyty")
+        self.url = self.station_info.get("query_url", "empyty")
+        self.site_name = self.station_info.get("site_name", "empyty")
+        self.var_description = self.station_info.get("var_description", "empyty")
+        self.approval_flag = self.station_info.get("approval_flag", "empyty")
+        self.qualifier_flag = self.station_info.get("qualifier_flag", "empyty")
         self.gap_flag = False
         self.check_gaps(interval=self.gap_tol)
         if gap_fill:
@@ -193,7 +193,7 @@ class NWISFrame:
         param : str, optional
             Parameter to query
         service : str, optional
-            Instantainous values = iv, Daily values = dv
+            Currently only "iv" service is implemented.  Instantanious, "iv" or Daily Value, "dv"
         access : int, optional
             Data access level.  0=public, 1=coop, 2=USGS internal
 
@@ -351,5 +351,5 @@ class NWISFrame:
         return resample_data
 
 
-data = NWISFrame(STAID="12323233", start_date="2022-11-10", end_date="2022-11-12", param="63680", access="0", resolve_masking=False)
-pause = 2
+# data = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", access=0, resolve_masking=False)
+# pause = 2
