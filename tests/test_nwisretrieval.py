@@ -8,7 +8,7 @@ from rich import print
 
 
 @pytest.fixture
-def dummy_station_info(approval_flag: str, qualifier_flag: str) -> dict:
+def dummy_station_info() -> dict:  # approval_flag: str, qualifier_flag: str
     """Generates dictionary of dummy station metadata.
 
     Parameters
@@ -87,17 +87,23 @@ def prov_gap_noqual_expected():
     return expected_data.set_index("datetime")
 
 
+@pytest.fixture
 @patch("nwisretrieval.nwisretrieval.NWISFrame.getNWIS")
-def test_resolve_masks(mock_getNWIS, prov_nogap_qual, prov_nogap_qual_expected, dummy_station_info):
+def mocked_NWISFrame(mock_getNWIS, prov_nogap_qual, dummy_station_info):
     mock_getNWIS.return_value = (prov_nogap_qual, dummy_station_info)
-    nwis = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680")
-    nwis.resolve_masks()
-    pd_testing.assert_frame_equal(nwis.data, prov_nogap_qual_expected)
+    return NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680")
 
 
-@patch("nwisretrieval.nwisretrieval.NWISFrame.getNWIS")
-def test_check_quals(mock_getNWIS, prov_nogap_qual, prov_nogap_qual_expected, dummy_station_info):
-    mock_getNWIS.return_value = (prov_nogap_qual, dummy_station_info)
-    nwis = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680")
-    nwis.resolve_masks()
-    pd_testing.assert_frame_equal(nwis.data, prov_nogap_qual_expected)
+def test_query_url(mocked_NWISFrame):
+    nwis_good = mocked_NWISFrame.query_url("https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites=05020500&startDT=2022-07-01&endDT=2022-7-02&statCd=00003&parameterCd=00060&siteStatus=all&access=2")
+    assert nwis_good.status_code == 200
+
+
+def test_resolve_masks(mocked_NWISFrame, prov_nogap_qual_expected):
+    mocked_NWISFrame.resolve_masks()
+    pd_testing.assert_frame_equal(mocked_NWISFrame.data, prov_nogap_qual_expected)
+
+
+def test_check_quals(mocked_NWISFrame, prov_nogap_qual, prov_nogap_qual_expected):
+    mocked_NWISFrame.check_quals()
+    assert mocked_NWISFrame.qualifier_flag == "Ice"
