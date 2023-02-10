@@ -228,7 +228,8 @@ class NWISFrame:
         data_frame.columns = data_frame.columns.str.lower()
         data_frame = data_frame.set_index(self._df_time_helper(data_frame))
         data_frame["value"] = pd.to_numeric(data_frame["value"])
-
+        del data_frame["datetime"]
+        
         station_info = {
             "query_url": url,
             "site_name": jdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"],
@@ -236,7 +237,6 @@ class NWISFrame:
             "dec_long": jdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
             "va_description": jdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
         }
-        del data_frame["datetime"]
         return data_frame, station_info
 
     def query_url(
