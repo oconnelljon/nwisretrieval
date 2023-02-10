@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "nwisretrieval"
+version = "0.1.0"
+description = ""
+authors = ["O'Connell, Jonathan P <joconnell@usgs.gov>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^1.5.2"
+requests = "^2.28.2"
+rich = "^13.3.1"
+
+
+[tool.poetry.group.dev.dependencies]
+ipython = "^8.9.0"
+ipykernel = "^6.20.2"
+pytest = "^7.2.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
