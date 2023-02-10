@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import requests
 import json
-from typing import Tuple
+from typing import Tuple, Type
+from requests.models import Response
 
 from rich import print
 from rich.console import Console, ConsoleOptions, RenderResult
@@ -31,7 +32,7 @@ class NWISFrame:
     param : str
         Parameter to download, e.g. "00060" retrieves dischage data.
     service : str, optional, by default "iv"
-        Currently only "iv" service is implemented.  Instantanious, "iv" or Daily Value, "dv"
+        Instantanious, "iv" or Daily Value, "dv"
     access : int, optional, by default 0
         Data access level.  0=public, 1=coop, 2=USGS internal
         Options 1 and 2 require USGS network access.
@@ -90,6 +91,8 @@ class NWISFrame:
         self.var_description = self.station_info.get("var_description", "empyty")
         self.approval_level = self.check_approval()
         self.qualifier_flag = self.check_quals()
+        if self.service == "dv":
+            self.gap_tol = "D"
         self.gap_flag = False
         self.check_gaps(interval=self.gap_tol)
         if gap_fill:
@@ -179,7 +182,7 @@ class NWISFrame:
         param: str,
         service: str,
         access: int,
-    ) -> Tuple:
+    ) -> Tuple[pd.DataFrame, dict]:
         """Retrieve time-series data and metadata from nwis.waterservices.usgs.gov
 
         Parameters
@@ -193,7 +196,7 @@ class NWISFrame:
         param : str, optional
             Parameter to query
         service : str, optional
-            Currently only "iv" service is implemented.  Instantanious, "iv" or Daily Value, "dv"
+            Instantanious, "iv" or Daily Value, "dv"
         access : int, optional
             Data access level.  0=public, 1=coop, 2=USGS internal
 
@@ -206,11 +209,15 @@ class NWISFrame:
         -----
 
         """
-        url = f"https://nwis.waterservices.usgs.gov/nwis/{service}/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}"
-        response = requests.get(url)
-        if response.status_code != 200:
-            print(f"Critical error!  No data found at: {url}\n Reason: {response.reason}")
-            raise SystemExit
+        url = self.construct_url(
+            STAID=STAID,
+            start_date=start_date,
+            end_date=end_date,
+            param=param,
+            service=service,
+            access=access,
+        )
+        response = self.query_url(url)
         jdata = json.loads(response.text)
 
         data_frame = pd.json_normalize(jdata["value"]["timeSeries"][0]["values"][0], ["value"])
@@ -221,7 +228,6 @@ class NWISFrame:
         data_frame.columns = data_frame.columns.str.lower()
         data_frame = data_frame.set_index(self._df_time_helper(data_frame))
         data_frame["value"] = pd.to_numeric(data_frame["value"])
-        # approval_flag, qualifier_flag = self.check_quals(data=data_frame, qualifier_col="qualifiers")
 
         station_info = {
             "query_url": url,
@@ -229,11 +235,37 @@ class NWISFrame:
             "dec_lat": jdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"],
             "dec_long": jdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
             "va_description": jdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
-            # "approval_flag": approval_flag,
-            # "qualifier_flag": qualifier_flag,
         }
         del data_frame["datetime"]
         return data_frame, station_info
+
+    def query_url(
+        self,
+        url: str,
+    ) -> Response:
+        response = requests.get(url)
+        if response.status_code != 200:
+            print(f"Critical error!  No data found at: {url}\n Reason: {response.reason}")
+            raise SystemExit
+        return response
+
+    def construct_url(
+        self,
+        STAID: str,
+        start_date: str,
+        end_date: str,
+        param: str,
+        service: str,
+        access: int,
+    ) -> str:
+        if service not in {"dv", "iv"}:
+            print(f"Critical error!  Invalid service: {service}")
+            raise SystemExit
+        service_urls = {
+            "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd=00003&parameterCd={param}&siteStatus=all&access={access}",
+            "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
+        }
+        return str(service_urls.get(service))  # add str() to solve linting type error
 
     def resolve_masks(self) -> None:
         """Void function.  Convert any values from -999999 to NaN values.
@@ -361,6 +393,12 @@ class NWISFrame:
         resample_data["qualifiers"] = data["qualifiers"].resample("D").apply(lambda x: x.mode())
         return resample_data
 
+
+LakeSherburneID = "05015500"
+StMaryCanalID = "05018500"  # st Mary Canal NWIS ID, this is diverted into the Milk River for use downstream
+StMaryRiverID = "05020500"
+
+SM_canal = NWISFrame(STAID="05020500", start_date="2022-07-01", end_date="2022-10-02", param="00060", access=2, resolve_masking=False, service="dv")
 
 data_ice = NWISFrame(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", access=0, resolve_masking=False)
 print(data_ice)
