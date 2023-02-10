@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import requests
 import json
-from typing import Tuple, Type
+from typing import Tuple
 from requests.models import Response
 
 from rich import print
@@ -229,7 +229,7 @@ class NWISFrame:
         data_frame = data_frame.set_index(self._df_time_helper(data_frame))
         data_frame["value"] = pd.to_numeric(data_frame["value"])
         del data_frame["datetime"]
-        
+
         station_info = {
             "query_url": url,
             "site_name": jdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"],
@@ -394,14 +394,15 @@ class NWISFrame:
         return resample_data
 
 
-LakeSherburneID = "05015500"
-StMaryCanalID = "05018500"  # st Mary Canal NWIS ID, this is diverted into the Milk River for use downstream
-StMaryRiverID = "05020500"
+if __name__ == "__main__":
+    LakeSherburneID = "05015500"
+    StMaryCanalID = "05018500"  # st Mary Canal NWIS ID, this is diverted into the Milk River for use downstream
+    StMaryRiverID = "05020500"
 
-SM_canal = NWISFrame(STAID="05020500", start_date="2022-07-01", end_date="2022-10-02", param="00060", access=2, resolve_masking=False, service="dv")
+    SM_canal = NWISFrame(STAID="05020500", start_date="2022-07-01", end_date="2022-10-02", param="00060", access=2, resolve_masking=False, service="dv")
 
-data_ice = NWISFrame(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", access=0, resolve_masking=False)
-print(data_ice)
-data_gaps = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", access=0, resolve_masking=False)
-print(data_gaps)
-pause = 2
+    data_ice = NWISFrame(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", access=0, resolve_masking=False)
+    print(data_ice)
+    data_gaps = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", access=0, resolve_masking=False)
+    print(data_gaps)
+    pause = 2
