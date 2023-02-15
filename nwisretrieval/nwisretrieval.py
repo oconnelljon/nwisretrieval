@@ -30,7 +30,9 @@ class NWISFrame:
     end_date : str
         End date to being downloading data.  e.g. "2022-01-05"
     param : str
-        Parameter to download, e.g. "00060" retrieves dischage data.
+        Parameter to download. discharge=00060, reservoir height=62614.
+    stat_code: str
+        Statistical code to query data.  00003=mean, 32400=mean at midnight
     service : str, optional, by default "iv"
         Instantanious, "iv" or Daily Value, "dv"
     access : int, optional, by default 0
@@ -68,6 +70,7 @@ class NWISFrame:
         start_date: str,
         end_date: str,
         param: str,
+        stat_code: str,
         service: str = "iv",
         access: int = 0,
         gap_tol: str = "15min",
@@ -78,12 +81,21 @@ class NWISFrame:
         self.start_date = start_date
         self.end_date = end_date
         self.param = param
+        self.stat_code = stat_code
         self.service = service
         self.access = access
         self.gap_tol = gap_tol
         self.gap_fill = gap_fill
         self.resolve_masking = resolve_masking
-        self.data, self.station_info = self.getNWIS(self.STAID, self.start_date, self.end_date, self.param, self.service, self.access)
+        self.data, self.station_info = self.getNWIS(
+            STAID=self.STAID,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            param=self.param,
+            service=self.service,
+            stat_code=self.stat_code,
+            access=self.access,
+        )
         self.dec_lat = self.station_info.get("dec_lat", "empyty")
         self.dec_long = self.station_info.get("dec_long", "empyty")
         self.url = self.station_info.get("query_url", "empyty")
@@ -180,6 +192,7 @@ class NWISFrame:
         start_date: str,
         end_date: str,
         param: str,
+        stat_code: str,
         service: str,
         access: int,
     ) -> Tuple[pd.DataFrame, dict]:
@@ -214,6 +227,7 @@ class NWISFrame:
             start_date=start_date,
             end_date=end_date,
             param=param,
+            stat_code=stat_code,
             service=service,
             access=access,
         )
@@ -255,6 +269,7 @@ class NWISFrame:
         start_date: str,
         end_date: str,
         param: str,
+        stat_code: str,
         service: str,
         access: int,
     ) -> str:
@@ -262,7 +277,7 @@ class NWISFrame:
             print(f"Critical error!  Invalid service: {service}")
             raise SystemExit
         service_urls = {
-            "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd=00003&parameterCd={param}&siteStatus=all&access={access}",
+            "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
             "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
         }
         return str(service_urls.get(service))  # add str() to solve linting type error
@@ -399,10 +414,10 @@ if __name__ == "__main__":
     StMaryCanalID = "05018500"  # st Mary Canal NWIS ID, this is diverted into the Milk River for use downstream
     StMaryRiverID = "05020500"
 
-    SM_canal = NWISFrame(STAID="05020500", start_date="2022-07-01", end_date="2022-10-02", param="00060", access=2, resolve_masking=False, service="dv")
+    SM_canal = NWISFrame(STAID="05020500", start_date="2022-07-01", end_date="2022-10-02", param="62614", stat_code="32400", access=2, resolve_masking=False, service="dv")
 
-    data_ice = NWISFrame(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", access=0, resolve_masking=False)
-    print(data_ice)
-    data_gaps = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", access=0, resolve_masking=False)
-    print(data_gaps)
+    # data_ice = NWISFrame(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", access=0, resolve_masking=False)
+    # print(data_ice)
+    # data_gaps = NWISFrame(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", access=0, resolve_masking=False)
+    # print(data_gaps)
     pause = 2
