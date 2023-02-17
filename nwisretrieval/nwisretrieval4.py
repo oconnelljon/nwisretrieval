@@ -5,16 +5,6 @@ import warnings
 from requests.models import Response
 
 
-def query_url(
-    url: str,
-) -> Response:
-    response = requests.get(url)
-    if response.status_code != 200:
-        print(f"Critical error!  No data found at: {url}\n Reason: {response.reason}")
-        raise SystemExit
-    return response
-
-
 class NWISFrame(pd.DataFrame):
     """Inherits from pandas DataFrame to extend properties and methods specific to NWIS time-series data.
 
@@ -236,12 +226,23 @@ class NWISFrame(pd.DataFrame):
             return self._metadict["_gap_tol"]
 
 
+def query_url(
+    url: str,
+) -> Response:
+    response = requests.get(url)
+    if response.status_code != 200:
+        print(f"Critical error!  No data found at: {url}\n Reason: {response.reason}")
+        raise SystemExit
+    return response
+
+
 def get_nwis(
     STAID: str,
     start_date: str,
     end_date: str,
     param: str,
-    stat_code: str = "32400",
+    stat_code: str = "00003",
+    # stat_code: str = "32400",
     service: str = "iv",
     access: int = 0,
     gap_tol: str | None = None,
@@ -253,10 +254,13 @@ def get_nwis(
         "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
     }
     url = service_urls[service]
-
     response = query_url(url)
     rdata = response.json()
+
     dataframe = pd.json_normalize(rdata, ["value", "timeSeries", "values", "value"])
+    if dataframe.empty is True:
+        print(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
+        raise SystemExit
     dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
     dataframe.set_index("dateTime", inplace=True)
     dataframe = dataframe.tz_localize(None)
@@ -285,7 +289,7 @@ def get_nwis(
         "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
     }
 
-    # Wrap pandas dataframe with custom NWISFrame class and assign metadata to _metadict.
+    # Custom NWISFrame class inherits from pd.DataFrame and assigns metadata to _metadict.
     dataframe = NWISFrame(dataframe)
     dataframe._metadict = metadata
 
@@ -293,34 +297,14 @@ def get_nwis(
         dataframe = dataframe.fill_gaps(gap_tol)
     if resolve_masking:
         dataframe.resolve_masks()
+    dataframe.check_quals()
+    dataframe.check_approval()
+    dataframe.check_gaps()
 
     return dataframe
 
 
 if __name__ == "__main__":
-
     # gap_data = get_nwis(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680")
-    data_ice = get_nwis(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", resolve_masking=False)
-    # print("STAID: ", gap_data.STAID)
-    # print("Start date: ", gap_data.start_date)
-    # print("End date: ", gap_data.end_date)
-    # print("Parameter: ", gap_data.param)
-    # print("Stat code: ", gap_data.stat_code)
-    # print("URL: ", gap_data.url)
-    # print("Site name: ", gap_data.site_name)
-    # print("Coordinates: ", gap_data.coords)
-    # print("Variable description: ", gap_data.var_description)
-    # print("Gap tolerance: ", gap_data.gap_tolerance)
-    # print("Data gaps: ", gap_data.gaps)
-
-    # gap_data = gap_data.fill_gaps("15min")
-    # print("Check data gaps")
-    # gap_data.check_gaps("15min")
-    # print("Data gaps: ", gap_data.gaps)
-    # print("filling data gaps")
-    # gap_data = gap_data.fill_gaps("15min")
-    # print("Check data gaps")
-    # gap_data.check_gaps("15min")
-    # print("Data gaps: ", gap_data.gaps)
-    # print("Approval level: ", gap_data.approval)
+    data = get_nwis(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", service="dv", gap_tol="D")
     pause = 2
