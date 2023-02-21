@@ -1,8 +1,9 @@
+from __future__ import annotations
 import warnings
-
 import numpy as np
 import pandas as pd
 import requests
+import sentinel
 from requests.models import Response
 
 
@@ -36,6 +37,9 @@ class NWISFrame(pd.DataFrame):
     For more information on extending pandas:
         https://pandas.pydata.org/docs/dev/development/extending.html#
 
+    Geopandas makes use of _metadata:
+        https://github.com/geopandas/geopandas/blob/main/geopandas/geodataframe.py
+
     @properties cannot be set by assignment e.g. STAID = "12301933" or self.STAID = "12301933"
     However, they are accessed like a class variable e.g. my_dataframe.STAID returns "12301933"
     """
@@ -44,6 +48,33 @@ class NWISFrame(pd.DataFrame):
     # Allows for propogation of metadata after dataframe manipulations e.g. slicing, asfreq, copy(), etc.
     # _metadict is created and assigned to the dataframe from get_nwis.
     _metadata = ["_metadict"]
+    # Custom sentinel object, works like "None"
+    unknown = sentinel.create("unknown")
+
+    def __init__(self, data=None, *args, **kwargs):
+        if kwargs.get("copy") is None and isinstance(data, pd.DataFrame):
+            kwargs.update(copy=True)
+        super().__init__(data, *args, **kwargs)
+        self._metadict = {
+            "_STAID": NWISFrame.unknown,
+            "_start_date": NWISFrame.unknown,
+            "_end_date": NWISFrame.unknown,
+            "_param": NWISFrame.unknown,
+            "_stat_code": NWISFrame.unknown,
+            "_service": NWISFrame.unknown,
+            "_access_level": NWISFrame.unknown,
+            "_url": NWISFrame.unknown,
+            "_gap_tolerance": NWISFrame.unknown,
+            "_gap_fill": NWISFrame.unknown,
+            "_resolve_masking": NWISFrame.unknown,
+            "_approval": NWISFrame.unknown,
+            "_site_name": NWISFrame.unknown,
+            "_coords": (
+                NWISFrame.unknown,
+                NWISFrame.unknown,
+            ),
+            "_var_description": NWISFrame.unknown,
+        }
 
     @property
     def _constructor(self):
@@ -95,9 +126,9 @@ class NWISFrame(pd.DataFrame):
     def gap_tolerance(self):
         return str(self._metadict.get("_gap_tolerance"))
 
-    # @property
-    # def mask_flag(self):
-    #     return self._metadict.get("_mask_flag")
+    @property
+    def gaps(self):
+        return self.gap_index(self.gap_tolerance)
 
     @property
     def approval(self):
@@ -107,7 +138,7 @@ class NWISFrame(pd.DataFrame):
     def qualifier(self):
         return self.check_quals()
 
-    def check_quals(self) -> str:
+    def check_quals(self):
         """Checks if qualifiers are applied to data.
 
         Parameters
@@ -127,14 +158,13 @@ class NWISFrame(pd.DataFrame):
         for qual in unique_quals:
             if "Ice" in qual or "i" in qual:
                 return "Ice"
-        return "None"
+        return self.unknown
 
     def check_gaps(
         self,
         gap_tol: str | None = None,
-    ) -> bool | str:
-        """gap_flag property calls this function to check if there are gaps in the time-series data
-
+    ) -> bool:
+        """Checks for gaps in time-series data.
         Parameters
         ----------
         gap_tol : str | None, optional
@@ -144,22 +174,20 @@ class NWISFrame(pd.DataFrame):
         Returns
         -------
         bool | None
-            True if gaps are present in the index and false if no gaps are found.
-
-            If neither gap_tol or self.gap_tolerance property are specified, returns string "unknown"
+            True if gaps are present in the index
+            False if no gaps are found in the index
+            If neither gap_tol or self.gap_tolerance property are specified, returns sentinel object: NWISFrame.unknown
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
-        if gap_tol == "unknown":
+        if gap_tol == NWISFrame.unknown:
             warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
-            return "unknown"
-        if self.gap_data(gap_tol).empty:
-            self._metadict["_gap_flag"] = False
+            return NWISFrame.unknown
+        if self.gap_index(gap_tol).empty:
             return False
-        self._metadict["_gap_flag"] = True
-        # print(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
+        warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
         return True
 
-    def gap_data(self, gap_tol):
+    def gap_index(self, gap_tol: str | None = None) -> pd.DatetimeIndex:
         gap_tol = self._resolve_gaptolerance(gap_tol)
         idx = pd.date_range(self.start_date, self.end_date, freq=gap_tol)
         return idx.difference(self.index)
@@ -167,11 +195,10 @@ class NWISFrame(pd.DataFrame):
     def fill_gaps(
         self,
         gap_tol: str | None = None,
-    ):
+    ) -> NWISFrame:
         gap_tol = self._resolve_gaptolerance(gap_tol)
         try:
             self = self.asfreq(freq=gap_tol)
-            self._metadict["_gap_flag"] = False
             self._metadict["_gap_tolerance"] = gap_tol
             return self
         except ValueError:
@@ -218,7 +245,6 @@ class NWISFrame(pd.DataFrame):
         """
 
         self["value"] = self["value"].where(self["value"] != -999999.0, np.NaN)
-        self._metadict["_mask_flag"] = True
         return None
 
     def _resolve_gaptolerance(self, gap_tol) -> str:
@@ -256,12 +282,9 @@ def get_nwis(
     gap_tol: str | None = None,
     gap_fill: bool = False,
     resolve_masking: bool = False,
-):
-    service_urls = {
-        "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
-        "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
-    }
-    url = service_urls[service]
+) -> NWISFrame:
+
+    url = build_url(STAID, start_date, end_date, param, stat_code, service, access)
     response = query_url(url)
     rdata = response.json()
 
@@ -274,32 +297,31 @@ def get_nwis(
     dataframe = dataframe.tz_localize(None)
     dataframe["value"] = pd.to_numeric(dataframe["value"])
 
-    metadata = {
-        "_STAID": STAID,
-        "_start_date": start_date,
-        "_end_date": end_date,
-        "_parame": param,
-        "_stat_code": stat_code,
-        "_service": service,
-        "_access_level": access,
-        "_url": url,
-        "_gap_tolerance": gap_tol,
-        "_gap_fill": gap_fill,
-        "_resolve_masking": resolve_masking,
-        "_gap_flag": "unknown",
-        "_approval": "Provisional",
-        "_mask_flag": "unknown",
-        "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"],
-        "_coords": (
-            rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"],
-            rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
-        ),
-        "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
-    }
-
-    # Custom NWISFrame class inherits from pd.DataFrame and assigns metadata to _metadict.
+    # Custom NWISFrame class inherits from pd.DataFrame.
     dataframe = NWISFrame(dataframe)
-    dataframe._metadict = metadata
+
+    # Update metadata dictionary.
+    dataframe._metadict.update(
+        {
+            "_STAID": STAID,
+            "_start_date": start_date,
+            "_end_date": end_date,
+            "_param": param,
+            "_stat_code": stat_code,
+            "_service": service,
+            "_access_level": access,
+            "_url": url,
+            "_gap_tolerance": gap_tol,
+            "_gap_fill": gap_fill,
+            "_resolve_masking": resolve_masking,
+            "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"],
+            "_coords": (
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"],
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
+            ),
+            "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
+        }
+    )
 
     if gap_fill and bool(gap_tol):
         dataframe = dataframe.fill_gaps(gap_tol)
@@ -312,15 +334,32 @@ def get_nwis(
     return dataframe
 
 
+def build_url(STAID, start_date, end_date, param, stat_code, service, access):
+    service_urls = {
+        "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
+        "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
+    }
+    return service_urls[service]
+
+
 if __name__ == "__main__":
     # Just some test data down here.
-    # gap_data = get_nwis(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680")
-    data = get_nwis(
-        STAID="12301250",
-        start_date="2023-01-02",
-        end_date="2023-01-03",
-        param="00060",
-        service="dv",
-        gap_tol="D",
+    gap_data = get_nwis(
+        STAID="12301933",
+        start_date="2023-01-03",
+        end_date="2023-01-04",
+        param="63680",
+        gap_tol="15min",
     )
+
+    # data = get_nwis(
+    #     STAID="12301250",
+    #     start_date="2023-01-02",
+    #     end_date="2023-01-05",
+    #     param="00060",
+    #     service="dv",
+    #     gap_tol="D",
+    # )
+    # data.gap_index()
+    gap_data.fill_gaps("15min")
     pause = 2
