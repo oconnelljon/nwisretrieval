@@ -1,7 +1,8 @@
-import pandas as pd
-import numpy as np
-import requests
 import warnings
+
+import numpy as np
+import pandas as pd
+import requests
 from requests.models import Response
 
 
@@ -94,13 +95,9 @@ class NWISFrame(pd.DataFrame):
     def gap_tolerance(self):
         return str(self._metadict.get("_gap_tolerance"))
 
-    @property
-    def gap_flag(self):
-        return self.check_gaps(self.gap_tolerance)
-
-    @property
-    def mask_flag(self):
-        return self._metadict.get("_mask_flag")
+    # @property
+    # def mask_flag(self):
+    #     return self._metadict.get("_mask_flag")
 
     @property
     def approval(self):
@@ -132,53 +129,54 @@ class NWISFrame(pd.DataFrame):
                 return "Ice"
         return "None"
 
-    def resolve_masks(self) -> None:
-        """Convert any values from -999999 to NaN values.
-        Set True to resolve NWIS masking of Ice qualified data to NaN values.
-        NWIS serves public data with an Ice qualifier as -999999 masked values.
-        Setting access to 1 "coop" or 2 "internal" returns actual values.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-
-        self["value"] = self["value"].where(self["value"] != -999999.0, np.NaN)
-        self._metadict["_mask_flag"] = True
-        return None
-
     def check_gaps(
         self,
         gap_tol: str | None = None,
-    ) -> bool:
-        # If no gap_tol is specified but _metadict contains a gap_tolerance, then fall back on the gap_tolerance value.
-        if gap_tol is None and self.gap_tolerance is not None:
-            gap_tol = self.gap_tolerance
+    ) -> bool | str:
+        """gap_flag property calls this function to check if there are gaps in the time-series data
 
-        # Override _gap_tol in _metadict with specified gap_tol
-        self._metadict["_gap_tol"] = gap_tol
-        try:
-            idx = pd.date_range(self.start_date, self.end_date, freq=gap_tol)
+        Parameters
+        ----------
+        gap_tol : str | None, optional
+            Gap tolerance, by default None
+            If no gap tolerance is specified, fall back on self.gap_tolerance property
 
-            # If index differences are empty, then there must be no gaps.  Set and return gap_flag
-            if idx.difference(self.index).empty:
-                self._metadict["_gap_flag"] = False
-                return False
+        Returns
+        -------
+        bool | None
+            True if gaps are present in the index and false if no gaps are found.
 
-            # Gaps found in the index
-            print(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
-            self._metadict["_gap_flag"] = True
-            return True
-
-        # if invalid gap_tol, issue warning and return "unknown"
-        except ValueError as e:
-            self._metadict["_gap_tol"] = "unknown"
+            If neither gap_tol or self.gap_tolerance property are specified, returns string "unknown"
+        """
+        gap_tol = self._resolve_gaptolerance(gap_tol)
+        if gap_tol == "unknown":
             warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
-            return self._metadict["_gap_tol"]
+            return "unknown"
+        if self.gap_data(gap_tol).empty:
+            self._metadict["_gap_flag"] = False
+            return False
+        self._metadict["_gap_flag"] = True
+        # print(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
+        return True
+
+    def gap_data(self, gap_tol):
+        gap_tol = self._resolve_gaptolerance(gap_tol)
+        idx = pd.date_range(self.start_date, self.end_date, freq=gap_tol)
+        return idx.difference(self.index)
+
+    def fill_gaps(
+        self,
+        gap_tol: str | None = None,
+    ):
+        gap_tol = self._resolve_gaptolerance(gap_tol)
+        try:
+            self = self.asfreq(freq=gap_tol)
+            self._metadict["_gap_flag"] = False
+            self._metadict["_gap_tolerance"] = gap_tol
+            return self
+        except ValueError:
+            warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
+            return self
 
     def check_approval(self) -> str:
         """Checks approval level of data.
@@ -204,26 +202,36 @@ class NWISFrame(pd.DataFrame):
         self._metadict["_approval"] = approval_level
         return approval_level
 
-    def fill_gaps(
-        self,
-        gap_tol: str | None = None,
-    ):
-        # If no gap_tol is specified but _metadict contains a gap_tolerance, then fall back on the gap_tolerance value.
-        if gap_tol is None and self.gap_tolerance is not None:
-            gap_tol = self.gap_tolerance
+    def resolve_masks(self) -> None:
+        """Convert any values from -999999 to NaN values.
+        Set True to resolve NWIS masking of Ice qualified data to NaN values.
+        NWIS serves public data with an Ice qualifier as -999999 masked values.
+        Setting access to 1 "coop" or 2 "internal" returns actual values.
 
-        # Override _gap_tol in _metadict with specified gap_tol
-        self._metadict["_gap_tol"] = gap_tol
-        try:
-            self = self.asfreq(freq=gap_tol)
-            self._metadict["_gap_flag"] = False
-            return self
+        Parameters
+        ----------
+        None
 
-        # if invalid gap_tol, issue warning and return "unknown"
-        except ValueError as e:
-            self._metadict["_gap_tol"] = "unknown"
-            warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
-            return self._metadict["_gap_tol"]
+        Returns
+        -------
+        None
+        """
+
+        self["value"] = self["value"].where(self["value"] != -999999.0, np.NaN)
+        self._metadict["_mask_flag"] = True
+        return None
+
+    def _resolve_gaptolerance(self, gap_tol) -> str:
+        """
+        If no gap_tol, fall back on self.gap_tolerance property.
+
+        If gap_tol is None and self.gap_tolerance is None, return None
+
+        If neither gap_tol or self.gap_tolerance, return "unknown"
+        """
+        if gap_tol is None:
+            return self.gap_tolerance if self.gap_tolerance is not None else "unknown"
+        return gap_tol
 
 
 def query_url(
@@ -307,5 +315,12 @@ def get_nwis(
 if __name__ == "__main__":
     # Just some test data down here.
     # gap_data = get_nwis(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680")
-    data = get_nwis(STAID="12301250", start_date="2023-01-02", end_date="2023-01-03", param="00060", service="dv", gap_tol="D")
+    data = get_nwis(
+        STAID="12301250",
+        start_date="2023-01-02",
+        end_date="2023-01-03",
+        param="00060",
+        service="dv",
+        gap_tol="D",
+    )
     pause = 2
