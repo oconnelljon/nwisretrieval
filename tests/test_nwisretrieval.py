@@ -1,10 +1,12 @@
-import pytest
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pandas.testing as pd_testing
-import nwisretrieval.nwisretrieval4 as nwis
-from unittest.mock import patch
+import pytest
 from rich import print
+
+import nwisretrieval.nwisretrieval4 as nwis
 
 
 @pytest.fixture
@@ -22,7 +24,9 @@ def dummy_station_ice_provisional_15min_nogap():  # approval_flag: str, qualifie
             "qualifiers": [["P"], ["P", "Ice"], ["P", "Ice"]],
         }
     )
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array, infer_datetime_format=True
+    )
     dataframe.set_index("dateTime", inplace=True)
 
     metadata = {
@@ -64,7 +68,9 @@ def dummy_station_ice_provisional_1Day_gap():  # approval_flag: str, qualifier_f
             "qualifiers": [["P"], ["P", "Ice"], ["P", "Ice"]],
         }
     )
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array, infer_datetime_format=True
+    )
     dataframe.set_index("dateTime", inplace=True)
 
     metadata = {
@@ -106,7 +112,9 @@ def dummy_station_ice_provisional_1Day_nogap():  # approval_flag: str, qualifier
             "qualifiers": [["P"], ["P"], ["P", "Ice"], ["P", "Ice"]],
         }
     )
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array, infer_datetime_format=True
+    )
     dataframe.set_index("dateTime", inplace=True)
 
     metadata = {
@@ -148,7 +156,9 @@ def prov_nogap_qual():
             "qualifiers": [["P"], ["P", "Ice"], ["P", "Ice"]],
         }
     )
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array, infer_datetime_format=True
+    )
     dataframe.set_index("dateTime", inplace=True)
     return dataframe
 
@@ -163,7 +173,9 @@ def expected_ice_provisional_15min_nogap():
             "qualifiers": [["P"], ["P", "Ice"], ["P", "Ice"]],
         }
     )
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array, infer_datetime_format=True
+    )
     dataframe.set_index("dateTime", inplace=True)
     return dataframe
 
@@ -180,7 +192,9 @@ def prov_gap_noqual():
             "qualifiers": [["P"], ["P"], ["P"]],
         }
     )
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array, infer_datetime_format=True
+    )
     dataframe.set_index("dateTime", inplace=True)
     return dataframe
 
@@ -189,26 +203,41 @@ def prov_gap_noqual():
 def prov_gap_noqual_expected():
     dataframe = pd.DataFrame(
         {
-            "dateTime": ["2023-01-03 16:30:00", "2023-01-03 16:45:00", "2023-01-03 17:00:00", "2023-01-03 17:15:00", "2023-01-03 17:30:00", "2023-01-03 17:45:00"],
+            "dateTime": [
+                "2023-01-03 16:30:00",
+                "2023-01-03 16:45:00",
+                "2023-01-03 17:00:00",
+                "2023-01-03 17:15:00",
+                "2023-01-03 17:30:00",
+                "2023-01-03 17:45:00",
+            ],
             "value": [1630, np.NaN, 1700, np.NaN, np.NaN, 1745],
             "qualifiers": [["P"], ["P"], ["P"], ["P"], ["P"], ["P"]],
         }
     )
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array, infer_datetime_format=True
+    )
     dataframe.set_index("dateTime", inplace=True)
     return dataframe
 
 
-def test_resolve_masks(dummy_station_ice_provisional_15min_nogap, expected_ice_provisional_15min_nogap):
+def test_resolve_masks(
+    dummy_station_ice_provisional_15min_nogap, expected_ice_provisional_15min_nogap
+):
     assert dummy_station_ice_provisional_15min_nogap._metadict["_mask_flag"] == "unknown"
     assert dummy_station_ice_provisional_15min_nogap.mask_flag == "unknown"
     dummy_station_ice_provisional_15min_nogap.resolve_masks()
-    pd_testing.assert_frame_equal(dummy_station_ice_provisional_15min_nogap, expected_ice_provisional_15min_nogap)
+    pd_testing.assert_frame_equal(
+        dummy_station_ice_provisional_15min_nogap, expected_ice_provisional_15min_nogap
+    )
     assert dummy_station_ice_provisional_15min_nogap._metadict["_mask_flag"] is True
 
 
 def test_fill_gaps(dummy_station_ice_provisional_1Day_gap):
-    expected_index = pd.DatetimeIndex(["2023-01-03", "2023-01-04", "2023-01-05", "2023-01-06"], name="dateTime", freq="D")
+    expected_index = pd.DatetimeIndex(
+        ["2023-01-03", "2023-01-04", "2023-01-05", "2023-01-06"], name="dateTime", freq="D"
+    )
     dummy_station_ice_provisional_1Day_gap = dummy_station_ice_provisional_1Day_gap.fill_gaps()
     assert all(dummy_station_ice_provisional_1Day_gap.index == expected_index)
 
@@ -223,54 +252,92 @@ def test_property_gap_flag(dummy_station_ice_provisional_1Day_gap):
     assert dummy_station_ice_provisional_1Day_gap.gap_flag is False
 
 
-def test_check_gaps(dummy_station_ice_provisional_1Day_gap, dummy_station_ice_provisional_1Day_nogap):
+def test_check_gaps(
+    dummy_station_ice_provisional_1Day_gap, dummy_station_ice_provisional_1Day_nogap
+):
     assert dummy_station_ice_provisional_1Day_gap.check_gaps("D") is True
     assert dummy_station_ice_provisional_1Day_nogap.check_gaps("D") is False
 
 
 def test_STAID(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_STAID") == dummy_station_ice_provisional_1Day_gap.STAID
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_STAID")
+        == dummy_station_ice_provisional_1Day_gap.STAID
+    )
 
 
 def test_start_date(dummy_station_ice_provisional_1Day_gap):
-    assert str(dummy_station_ice_provisional_1Day_gap._metadict.get("_start_date")) == dummy_station_ice_provisional_1Day_gap.start_date
+    assert (
+        str(dummy_station_ice_provisional_1Day_gap._metadict.get("_start_date"))
+        == dummy_station_ice_provisional_1Day_gap.start_date
+    )
 
 
 def test_end_date(dummy_station_ice_provisional_1Day_gap):
-    assert str(dummy_station_ice_provisional_1Day_gap._metadict.get("_end_date")) == dummy_station_ice_provisional_1Day_gap.end_date
+    assert (
+        str(dummy_station_ice_provisional_1Day_gap._metadict.get("_end_date"))
+        == dummy_station_ice_provisional_1Day_gap.end_date
+    )
 
 
 def test_param(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_param") == dummy_station_ice_provisional_1Day_gap.param
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_param")
+        == dummy_station_ice_provisional_1Day_gap.param
+    )
 
 
 def test_stat_code(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_stat_code") == dummy_station_ice_provisional_1Day_gap.stat_code
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_stat_code")
+        == dummy_station_ice_provisional_1Day_gap.stat_code
+    )
 
 
 def test_service(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_service") == dummy_station_ice_provisional_1Day_gap.service
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_service")
+        == dummy_station_ice_provisional_1Day_gap.service
+    )
 
 
 def test_url(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_url") == dummy_station_ice_provisional_1Day_gap.url
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_url")
+        == dummy_station_ice_provisional_1Day_gap.url
+    )
 
 
 def test_site_name(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_site_name") == dummy_station_ice_provisional_1Day_gap.site_name
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_site_name")
+        == dummy_station_ice_provisional_1Day_gap.site_name
+    )
 
 
 def test_coords(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_coords") == dummy_station_ice_provisional_1Day_gap.coords
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_coords")
+        == dummy_station_ice_provisional_1Day_gap.coords
+    )
 
 
 def test_var_description(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_var_description") == dummy_station_ice_provisional_1Day_gap.var_description
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_var_description")
+        == dummy_station_ice_provisional_1Day_gap.var_description
+    )
 
 
 def test_gap_tolerance(dummy_station_ice_provisional_1Day_gap):
-    assert str(dummy_station_ice_provisional_1Day_gap._metadict.get("_gap_tolerance")) == dummy_station_ice_provisional_1Day_gap.gap_tolerance
+    assert (
+        str(dummy_station_ice_provisional_1Day_gap._metadict.get("_gap_tolerance"))
+        == dummy_station_ice_provisional_1Day_gap.gap_tolerance
+    )
 
 
 def test_mask_flag(dummy_station_ice_provisional_1Day_gap):
-    assert dummy_station_ice_provisional_1Day_gap._metadict.get("_mask_flag") == dummy_station_ice_provisional_1Day_gap.mask_flag
+    assert (
+        dummy_station_ice_provisional_1Day_gap._metadict.get("_mask_flag")
+        == dummy_station_ice_provisional_1Day_gap.mask_flag
+    )
