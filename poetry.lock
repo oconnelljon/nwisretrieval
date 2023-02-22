@@ -1117,6 +1117,21 @@ pygments = ">=2.14.0,<3.0.0"
 jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
+name = "sentinel"
+version = "1.0.0"
+description = "Create sentinel objects, akin to None, NotImplemented, Ellipsis"
+category = "main"
+optional = false
+python-versions = ">=3.6,<4.0"
+files = [
+    {file = "sentinel-1.0.0-py3-none-any.whl", hash = "sha256:24f02a34cc9f0fcba5a666a23b6c7f56aff332fc624632ee442e7237751a9f60"},
+    {file = "sentinel-1.0.0.tar.gz", hash = "sha256:190928f9951af6e94a1f84eefcaed791c28097dd152b88e988906be300451fd2"},
+]
+
+[package.extras]
+varname = ["varname (>=0.1)"]
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -1217,4 +1232,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "c52a2bf65cbef8ef4906a58f764ff01e7c7ea1959dcfb3dc4e11514455648d93"
+content-hash = "81a0f95ea952051959a1bdf27724d4cc93370cd0fc46e7010a611ee1f38282e9"
