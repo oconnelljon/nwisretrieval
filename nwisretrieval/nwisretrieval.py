@@ -42,11 +42,16 @@ class NWISFrame(pd.DataFrame):
 
     @properties cannot be set by assignment e.g. STAID = "12301933" or self.STAID = "12301933"
     However, they are accessed like a class variable e.g. my_dataframe.STAID returns "12301933"
+
+    Because "None" can be viewed as a valid return to some class properties, a custom sentinel object
+    from the sentinel library is used in this class to provide the same characteristics as "None"
+    but will instead have a name of "Unknown"
     """
 
     # Register custom dataframe property NAMES in _metadata list.
     # Named properties in this list will propgate after dataframe manipulations e.g. slicing, asfreq, deepcopy(), etc.
     _metadata = ["_metadict"]
+
     # Custom sentinel object, works like "None"
     Unknown = sentinel.create("Unknown")
 
@@ -167,7 +172,10 @@ class NWISFrame(pd.DataFrame):
         warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
         return True
 
-    def gap_index(self, gap_tol: str | None = None) -> pd.DatetimeIndex:
+    def gap_index(
+        self,
+        gap_tol: str | None = None,
+    ) -> pd.DatetimeIndex:
         gap_tol = self._resolve_gaptolerance(gap_tol)
         idx = pd.date_range(self.start_date, self.end_date, freq=gap_tol)
         return idx.difference(self.index)
@@ -227,7 +235,10 @@ class NWISFrame(pd.DataFrame):
         self["value"] = self["value"].where(self["value"] != -999999.0, np.NaN)
         return None
 
-    def _resolve_gaptolerance(self, gap_tol) -> str:
+    def _resolve_gaptolerance(
+        self,
+        gap_tol: str,
+    ) -> str:
         """
         If no gap_tol, fall back on self.gap_tolerance property.
 
@@ -267,7 +278,10 @@ def query_url(
     return response
 
 
-def create_metadict(rdata: dict | None = None, **kwargs) -> dict:
+def create_metadict(
+    rdata: dict | None = None,
+    **kwargs,
+) -> dict:
     metadict = dict(
         {
             "_STAID": kwargs.get("STAID", NWISFrame.Unknown),
@@ -335,7 +349,15 @@ def process_nwis_response(
     return dataframe
 
 
-def build_url(STAID, start_date, end_date, param, stat_code, service, access):
+def build_url(
+    STAID,
+    start_date,
+    end_date,
+    param,
+    stat_code,
+    service,
+    access,
+) -> str:
     service_urls = {
         "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
         "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
@@ -405,6 +427,7 @@ def get_nwis(
     response = query_url(url)
     rdata = response.json()
     dataframe = process_nwis_response(url, response, rdata)
+
     dataframe = NWISFrame(dataframe)
     dataframe._metadict = create_metadict(
         dataframe=dataframe,
@@ -429,7 +452,6 @@ def get_nwis(
     dataframe.check_quals()
     dataframe.check_approval()
     dataframe.check_gaps()
-
     return dataframe
 
 
