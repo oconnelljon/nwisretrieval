@@ -148,7 +148,7 @@ class NWISFrame(pd.DataFrame):
     def check_gaps(
         self,
         gap_tol: str | None = None,
-    ) -> bool:
+    ) -> bool | object:
         """Checks for gaps in time-series data.
         Parameters
         ----------
@@ -237,8 +237,8 @@ class NWISFrame(pd.DataFrame):
 
     def _resolve_gaptolerance(
         self,
-        gap_tol: str,
-    ) -> str:
+        gap_tol: str | None,
+    ) -> str | object:
         """
         If no gap_tol, fall back on self.gap_tolerance property.
 
@@ -247,7 +247,7 @@ class NWISFrame(pd.DataFrame):
         If neither gap_tol or self.gap_tolerance, return "unknown"
         """
         if gap_tol is None:
-            return self.gap_tolerance if self.gap_tolerance is not None else "unknown"
+            return self.gap_tolerance if self.gap_tolerance is not None else NWISFrame.Unknown
         return gap_tol
 
 
