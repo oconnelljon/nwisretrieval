@@ -44,42 +44,22 @@ class NWISFrame(pd.DataFrame):
     However, they are accessed like a class variable e.g. my_dataframe.STAID returns "12301933"
     """
 
-    # register custom dataframe properties in this list.
-    # Allows for propogation of metadata after dataframe manipulations e.g. slicing, asfreq, copy(), etc.
-    # _metadict is created and assigned to the dataframe from get_nwis.
+    # Register custom dataframe property NAMES in _metadata list.
+    # Named properties in this list will propgate after dataframe manipulations e.g. slicing, asfreq, deepcopy(), etc.
     _metadata = ["_metadict"]
     # Custom sentinel object, works like "None"
-    unknown = sentinel.create("unknown")
+    Unknown = sentinel.create("Unknown")
 
-    def __init__(self, data=None, *args, **kwargs):
+    def __init__(self, data: pd.DataFrame, *args, **kwargs):
         if kwargs.get("copy") is None and isinstance(data, pd.DataFrame):
             kwargs.update(copy=True)
         super().__init__(data, *args, **kwargs)
-        self._metadict = {
-            "_STAID": NWISFrame.unknown,
-            "_start_date": NWISFrame.unknown,
-            "_end_date": NWISFrame.unknown,
-            "_param": NWISFrame.unknown,
-            "_stat_code": NWISFrame.unknown,
-            "_service": NWISFrame.unknown,
-            "_access_level": NWISFrame.unknown,
-            "_url": NWISFrame.unknown,
-            "_gap_tolerance": NWISFrame.unknown,
-            "_gap_fill": NWISFrame.unknown,
-            "_resolve_masking": NWISFrame.unknown,
-            "_approval": NWISFrame.unknown,
-            "_site_name": NWISFrame.unknown,
-            "_coords": (
-                NWISFrame.unknown,
-                NWISFrame.unknown,
-            ),
-            "_var_description": NWISFrame.unknown,
-        }
+        self._metadict = create_metadict()
 
+    # Override of pd.DataFrame _constructor property.
+    # Allows for the retention of subclasses through data manipulations.
     @property
     def _constructor(self):
-        # Override of pd.DataFrame _constructor property.
-        # Allows for the retention of subclasses through data manipulations.
         return NWISFrame
 
     @property
@@ -158,7 +138,7 @@ class NWISFrame(pd.DataFrame):
         for qual in unique_quals:
             if "Ice" in qual or "i" in qual:
                 return "Ice"
-        return self.unknown
+        return self.Unknown
 
     def check_gaps(
         self,
@@ -179,9 +159,9 @@ class NWISFrame(pd.DataFrame):
             If neither gap_tol or self.gap_tolerance property are specified, returns sentinel object: NWISFrame.unknown
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
-        if gap_tol == NWISFrame.unknown:
+        if gap_tol == NWISFrame.Unknown:
             warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
-            return NWISFrame.unknown
+            return NWISFrame.Unknown
         if self.gap_index(gap_tol).empty:
             return False
         warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
@@ -263,6 +243,23 @@ class NWISFrame(pd.DataFrame):
 def query_url(
     url: str,
 ) -> Response:
+    """Qurey NWIS url
+
+    Parameters
+    ----------
+    url : str
+        NWIS url pointing to JSON data
+
+    Returns
+    -------
+    Response
+        requests Response object
+
+    Raises
+    ------
+    SystemExit
+        If status code is not 200, some error has occured and no data was returned, exit the program.
+    """
     response = requests.get(url)
     if response.status_code != 200:
         print(f"Critical error!  No data found at: {url}\n Reason: {response.reason}")
@@ -270,24 +267,63 @@ def query_url(
     return response
 
 
-def get_nwis(
-    STAID: str,
-    start_date: str,
-    end_date: str,
-    param: str,
-    stat_code: str = "00003",
-    # stat_code: str = "32400",
-    service: str = "iv",
-    access: int = 0,
-    gap_tol: str | None = None,
-    gap_fill: bool = False,
-    resolve_masking: bool = False,
-) -> NWISFrame:
+def create_metadict(rdata: dict | None = None, **kwargs) -> dict:
+    metadict = dict(
+        {
+            "_STAID": kwargs.get("STAID", NWISFrame.Unknown),
+            "_start_date": kwargs.get("start_date", NWISFrame.Unknown),
+            "_end_date": kwargs.get("end_date", NWISFrame.Unknown),
+            "_param": kwargs.get("param", NWISFrame.Unknown),
+            "_stat_code": kwargs.get("stat_code", NWISFrame.Unknown),
+            "_service": kwargs.get("service", NWISFrame.Unknown),
+            "_access_level": kwargs.get("access", NWISFrame.Unknown),
+            "_url": kwargs.get("url", NWISFrame.Unknown),
+            "_gap_tolerance": kwargs.get("gap_tol", NWISFrame.Unknown),
+            "_gap_fill": kwargs.get("gap_fill", NWISFrame.Unknown),
+            "_resolve_masking": kwargs.get("resolve_masking", NWISFrame.Unknown),
+            "_approval": kwargs.get("_approval", NWISFrame.Unknown),
+        }
+    )
+    if rdata:
+        metadict.update(
+            {
+                "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"] or NWISFrame.Unknown,
+                "_coords": (
+                    rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"] or NWISFrame.Unknown,
+                    rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"] or NWISFrame.Unknown,
+                ),
+                "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"] or NWISFrame.Unknown,
+            }
+        )
+    return metadict
 
-    url = build_url(STAID, start_date, end_date, param, stat_code, service, access)
-    response = query_url(url)
-    rdata = response.json()
 
+def process_nwis_response(
+    url: str,
+    response: Response,
+    rdata: dict,
+) -> pd.DataFrame:
+    """Process JSON data from NWIS to pd.DataFrame
+
+    Parameters
+    ----------
+    url : str
+        Query url
+    response : Response
+        response object
+    rdata : dict
+        JSON data from NWIS url
+
+    Returns
+    -------
+    pd.DataFrame
+        DateTimeIndex, values, approval/qualifiers
+
+    Raises
+    ------
+    SystemExit
+        If DataFrame returned from NWIS is empty, exit the program.
+    """
     dataframe = pd.json_normalize(rdata, ["value", "timeSeries", "values", "value"])
     if dataframe.empty is True:
         print(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
@@ -296,31 +332,94 @@ def get_nwis(
     dataframe.set_index("dateTime", inplace=True)
     dataframe = dataframe.tz_localize(None)
     dataframe["value"] = pd.to_numeric(dataframe["value"])
+    return dataframe
 
-    # Custom NWISFrame class inherits from pd.DataFrame.
+
+def build_url(STAID, start_date, end_date, param, stat_code, service, access):
+    service_urls = {
+        "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
+        "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
+    }
+    return service_urls[service]
+
+
+def get_nwis(
+    STAID: str,
+    start_date: str,
+    end_date: str,
+    param: str,
+    stat_code: str = "00003",
+    # stat_code: str =
+    service: str = "iv",
+    access: int = 0,
+    gap_tol: str | None = None,
+    gap_fill: bool = False,
+    resolve_masking: bool = False,
+) -> NWISFrame:
+    """Retreives NWIS time-series data as a dataframe with extended methods and metadata properties.
+
+    Parameters
+    ----------
+    STAID : str
+        Station description
+    start_date : str
+        Start date
+    end_date : str
+        End date
+    param : str
+        Parameter
+    stat_code : str, optional
+        statistical code, by default daily values "00003"
+        Use "32400" for midnight values
+    service : str, optional
+        Service, e.g. "iv" or "dv", by default "iv"
+    access : int, optional
+        Access level.  0 - Public, 1 - Coop, 2 - Internal, by default 0
+    gap_tol : str | None, optional
+        gap tolerance of time-series, "15min" = 15 minute gap tolerance, "D" = 24hr tolerance, by default None
+    gap_fill : bool, optional
+        Set True to fill any gaps in time-series with np.NaN, by default False
+    resolve_masking : bool, optional
+        Data with qualifiers such as "Ice" will mask data values with -999999 when access level is public.
+        Set True and -999999 will be converted to np.NaN values, by default False
+
+    Returns
+    -------
+    NWISFrame
+        Acts just like a pandas DataFrame, but comes with extended methods and properties.
+
+    Notes
+    -----
+    Refactor this function.  It handles too much.
+    """
+
+    url = build_url(
+        STAID=STAID,
+        start_date=start_date,
+        end_date=end_date,
+        param=param,
+        stat_code=stat_code,
+        service=service,
+        access=access,
+    )
+    response = query_url(url)
+    rdata = response.json()
+    dataframe = process_nwis_response(url, response, rdata)
     dataframe = NWISFrame(dataframe)
-
-    # Update metadata dictionary.
-    dataframe._metadict.update(
-        {
-            "_STAID": STAID,
-            "_start_date": start_date,
-            "_end_date": end_date,
-            "_param": param,
-            "_stat_code": stat_code,
-            "_service": service,
-            "_access_level": access,
-            "_url": url,
-            "_gap_tolerance": gap_tol,
-            "_gap_fill": gap_fill,
-            "_resolve_masking": resolve_masking,
-            "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"],
-            "_coords": (
-                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"],
-                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
-            ),
-            "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
-        }
+    dataframe._metadict = create_metadict(
+        dataframe=dataframe,
+        STAID=STAID,
+        start_date=start_date,
+        end_date=end_date,
+        param=param,
+        stat_code=stat_code,
+        service=service,
+        access=access,
+        gap_tol=gap_tol,
+        gap_fill=gap_fill,
+        resolve_masking=resolve_masking,
+        url=url,
+        rdata=rdata,
     )
 
     if gap_fill and bool(gap_tol):
@@ -332,14 +431,6 @@ def get_nwis(
     dataframe.check_gaps()
 
     return dataframe
-
-
-def build_url(STAID, start_date, end_date, param, stat_code, service, access):
-    service_urls = {
-        "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
-        "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
-    }
-    return service_urls[service]
 
 
 if __name__ == "__main__":
