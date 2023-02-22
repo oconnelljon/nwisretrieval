@@ -1,65 +1,8 @@
+from __future__ import annotations
 import pandas as pd
 import numpy as np
 import requests
-
-
-def get_nwis(
-    STAID: str,
-    start_date: str,
-    end_date: str,
-    param: str,
-    stat_code: str = "32400",
-    service: str = "iv",
-    access: int = 0,
-    resolve_masking: bool = False,
-    gap_tol: str | None = None,
-    gap_fill: bool | None = None,
-):
-    service_urls = {
-        "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
-        "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
-    }
-    try:
-        url = service_urls[service]
-    except KeyError as e:
-        raise SystemExit(f"Invalid service: {service}  Exiting program now.") from e
-
-    response = requests.request("GET", url)
-    rdata = response.json()
-    dataframe = pd.json_normalize(rdata, ["value", "timeSeries", "values", "value"])
-    if dataframe.empty is True:
-        raise SystemExit(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
-
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"], infer_datetime_format=True)
-    dataframe.set_index("dateTime", inplace=True)
-    dataframe["value"] = pd.to_numeric(dataframe["value"])
-
-    metadict = {
-        "STAID": STAID,
-        "start_date": start_date,
-        "end_date": end_date,
-        "param": param,
-        "stat_code": stat_code,
-        "service": service,
-        "access": access,
-        "URL": url,
-        "gap_tol": gap_tol,
-        "gap_fill": gap_fill,
-        "resolve_masking": resolve_masking,
-        "gap_flag": None,
-        "site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"],
-        "coords": (
-            rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"],
-            rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
-        ),
-        "var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
-    }
-    dataframe.nwismeta._metadict = metadict
-
-    if gap_fill and bool(gap_tol):
-        dataframe.nwisframe.fill_gaps(gap_tol)
-
-    return dataframe
+from requests import Response
 
 
 @pd.api.extensions.register_dataframe_accessor("nwismeta")
@@ -76,9 +19,12 @@ class NWISFrame:
     methods can calculate properties based on available instance data.
     """
 
+    _metadata = ["_metadict"]
+
     def __init__(self, pandas_obj) -> None:
         self._validate(pandas_obj)
         self._obj: pd.DataFrame = pandas_obj
+        self._metadict = {}
 
     @staticmethod
     def _validate(obj) -> None:
@@ -101,76 +47,11 @@ class NWISFrame:
         return self._obj.nwismeta._metadict.get("end_date")
 
     @property
-    def param(self):
-        return self._obj.nwismeta._metadict.get("param")
-
-    @property
-    def stat_code(self):
-        return self._obj.nwismeta._metadict.get("stat_code")
-
-    @property
-    def service(self):
-        return self._obj.nwismeta._metadict.get("service")
-
-    @property
-    def url(self):
-        return self._obj.nwismeta._metadict.get("url")
-
-    @property
-    def site_name(self):
-        return self._obj.nwismeta._metadict.get("site_name")
-
-    @property
     def coords(self):
         return self._obj.nwismeta._metadict.get("coords")
 
     @property
-    def var_description(self):
-        return self._obj.nwismeta._metadict.get("var_description")
-
-    @property
-    def gaps(self):
-        return self._obj.nwismeta._metadict.get("gap_flag")
-
-    @property
-    def approval_level(self) -> str:
-        """Checks approval level of data. If ANY records are provisional, set to "Provisional" level.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        str
-            Return "Provisional" or "Approved".
-
-        Notes
-        -----
-        """
-        unique_quals = list(pd.unique(self._obj["qualifiers"].apply(frozenset)))
-        return next(
-            ("Provisional" for approval in unique_quals if "P" in approval),
-            "Approved",
-        )
-
-    @property
     def qualifier(self) -> str:
-        """Checks if qualifiers are applied to data.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        str
-            Returns "Ice" if ANY record has an ice qualifier.
-
-        Notes
-        -----
-        Currently only checking for Ice qualifiers.  May need to add more for equipment malfunctions, etc.
-        """
         unique_quals = list(pd.unique(self._obj["qualifiers"].apply(frozenset)))
         for qual in unique_quals:
             if "Ice" in qual or "i" in qual:
@@ -181,17 +62,6 @@ class NWISFrame:
         self,
         interval: str,
     ) -> None:
-        """Void function.  Check time-series for gaps and update self.gap_flag as True/False
-
-        Parameters
-        ----------
-        interval : str | None, optional
-            Override for self.gap_tol set in __init__, by default None, if None, fallback on self.gap_tol, by default 15min
-
-        Returns
-        -------
-        None
-        """
         idx = pd.date_range(self._obj.nwismeta._metadict["start_date"], self._obj.nwismeta._metadict["start_date"], freq=interval)
         if idx.difference(self._obj.index).empty:
             self.gap_flag = False
@@ -201,75 +71,235 @@ class NWISFrame:
         self.gap_flag = True
         return None
 
-    # @staticmethod
     def fill_gaps(
         self,
         interval: str | None = None,
     ) -> None:
-        """Void function.  Fill data gaps in instance time-series data.
-
-        Parameters
-        ----------
-        interval : str | None, optional
-            Override for self.gap_tol set in __init__, by default None, if None, fallback on self.gap_tol, by default 15min
-
-        Returns
-        -------
-        None
-        """
         if interval is None:
             interval = self._obj.nwismeta._metadict["gap_tol"]
         self._obj = self._obj.asfreq(freq=interval)
-        # self.check_gaps(cls.gap_tol)
-        # self._obj.nwismeta._metadict.update(gap_flag=True)
         return None
 
-    # def resolve_masks(self) -> None:
-    #     """Void function.  Convert any values from -999999 to NaN values.
-    #     See NWISFrame resolve_masking parameter docstring for further information.
+    def _resolve_gaptolerance(self, gap_tol) -> str:
+        """
+        If no gap_tol, fall back on self.gap_tolerance property.
 
-    #     Parameters
-    #     ----------
-    #     None
+        If gap_tol is None and self.gap_tolerance is None, return None
 
-    #     Returns
-    #     -------
-    #     None
-    #     """
-
-    #     self.data["value"] = self.data["value"].where(self.data["value"] != -999999.0, np.NaN)
-    #     self.resolve_masking = True
-    #     return None
-
-    # def fill_gaps(
-    #     self,
-    #     interval: str | None = None,
-    # ) -> None:
-    #     """Void function.  Fill data gaps in instance time-series data.
-
-    #     Parameters
-    #     ----------
-    #     interval : str | None, optional
-    #         Override for self.gap_tol set in __init__, by default None, if None, fallback on self.gap_tol, by default 15min
-
-    #     Returns
-    #     -------
-    #     None
-    #     """
-    #     if interval is None:
-    #         interval = self.gap_tol
-    #     self.data = self.data.asfreq(freq=interval)
-    #     self.check_gaps(self.gap_tol)
-    #     self.gap_fill = True
-    #     return None
+        If neither gap_tol or self.gap_tolerance, return "unknown"
+        """
+        return gap_tol
 
 
-# data = get_nwis("12301933", start_date="2022-02-01", end_date="2022-02-10", param="00060", service="iv")
-gap_data = get_nwis(STAID="12301933", start_date="2023-01-03", end_date="2023-01-04", param="63680", gap_fill=False, gap_tol="15min")
-gap_data.nwisframe.fill_gaps("15min")
-gap_data.nwisframe.fill_gaps("15min")
-gap_data.nwisframe.check_gaps("15min")
-print(gap_data.nwisframe.site_name)
-print(gap_data.nwisframe.coords)
-print(gap_data.nwisframe.var_description)
-pause = 2
+def query_url(
+    url: str,
+) -> Response:
+    """Qurey NWIS url
+
+    Parameters
+    ----------
+    url : str
+        NWIS url pointing to JSON data
+
+    Returns
+    -------
+    Response
+        requests Response object
+
+    Raises
+    ------
+    SystemExit
+        If status code is not 200, some error has occured and no data was returned, exit the program.
+    """
+    response = requests.get(url)
+    if response.status_code != 200:
+        print(f"Critical error!  No data found at: {url}\n Reason: {response.reason}")
+        raise SystemExit
+    return response
+
+
+def get_nwis(
+    STAID: str,
+    start_date: str,
+    end_date: str,
+    param: str,
+    stat_code: str = "00003",
+    # stat_code: str = "32400",
+    service: str = "iv",
+    access: int = 0,
+    gap_tol: str | None = None,
+    gap_fill: bool = False,
+    resolve_masking: bool = False,
+) -> NWISFrame:
+    """Retreives NWIS time-series data as a dataframe with extended methods and metadata properties.
+
+    Parameters
+    ----------
+    STAID : str
+        Station description
+    start_date : str
+        Start date
+    end_date : str
+        End date
+    param : str
+        Parameter
+    stat_code : str, optional
+        statistical code, by default "00003"
+    service : str, optional
+        Service, e.g. "iv" or "dv", by default "iv"
+    access : int, optional
+        Access level.  0 - Public, 1 - Coop, 2 - Internal, by default 0
+    gap_tol : str | None, optional
+        gap tolerance of time-series, "15min" = 15 minute gap tolerance, "D" = 24hr tolerance, by default None
+    gap_fill : bool, optional
+        Set True to fill any gaps in time-series with np.NaN, by default False
+    resolve_masking : bool, optional
+        Data with qualifiers such as "Ice" will mask data values with -999999 when access level is public.
+        Set True and -999999 will be converted to np.NaN values, by default False
+
+    Returns
+    -------
+    NWISFrame
+        Acts just like a pandas DataFrame, but comes with extended methods and properties.
+
+    Notes
+    -----
+    Refactor this function.  It handles too much.
+    """
+
+    url = build_url(STAID, start_date, end_date, param, stat_code, service, access)
+    response = query_url(url)
+    rdata = response.json()
+    dataframe = process_nwis_response(url, response, rdata)
+    # Custom NWISFrame class inherits from pd.DataFrame.
+    # dataframe = NWISFrame(dataframe)
+    dataframe.nwisframe._metadict.update(
+        {
+            "_STAID": STAID,
+            "_start_date": start_date,
+            "_end_date": end_date,
+            "_param": param,
+            "_stat_code": stat_code,
+            "_service": service,
+            "_access_level": access,
+            "_url": url,
+            "_gap_tolerance": gap_tol,
+            "_gap_fill": gap_fill,
+            "_resolve_masking": resolve_masking,
+            "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"],
+            "_coords": (
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"],
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"],
+            ),
+            "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"],
+        }
+    )
+
+    return dataframe
+
+
+def process_nwis_response(
+    url: str,
+    response: Response,
+    rdata: dict,
+) -> pd.DataFrame:
+    """Process JSON data from NWIS to pd.DataFrame
+
+    Parameters
+    ----------
+    url : str
+        Query url
+    response : Response
+        response object
+    rdata : dict
+        JSON data from NWIS url
+
+    Returns
+    -------
+    pd.DataFrame
+        DateTimeIndex, values, approval/qualifiers
+
+    Raises
+    ------
+    SystemExit
+        If DataFrame returned from NWIS is empty, exit the program.
+    """
+    dataframe = pd.json_normalize(rdata, ["value", "timeSeries", "values", "value"])
+    if dataframe.empty is True:
+        print(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
+        raise SystemExit
+    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
+    dataframe.set_index("dateTime", inplace=True)
+    dataframe = dataframe.tz_localize(None)
+    dataframe["value"] = pd.to_numeric(dataframe["value"])
+    return dataframe
+
+
+def build_url(STAID, start_date, end_date, param, stat_code, service, access):
+    service_urls = {
+        "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
+        "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
+    }
+    return service_urls[service]
+
+
+@pd.api.extensions.register_dataframe_accessor("geo")
+class GeoAccessor:
+    def __init__(self, pandas_obj):
+        self._validate(pandas_obj)
+        self._obj = pandas_obj
+
+    @staticmethod
+    def _validate(obj):
+        # verify there is a column latitude and a column longitude
+        if "latitude" not in obj.columns or "longitude" not in obj.columns:
+            raise AttributeError("Must have 'latitude' and 'longitude'.")
+
+    def __getattr__(self, attr):
+        if attr in self.__dict__:
+            return getattr(self, attr)
+        return getattr(self._df, attr)
+
+    def __getitem__(self, item):
+        return self._df[item]
+
+    def __setitem__(self, item, data):
+        self._df[item] = data
+
+    # @property
+    def center(self):
+        # return the geographic center point of this DataFrame
+        lat = self._obj.latitude
+        lon = self._obj.longitude
+        return (float(lon.mean()), float(lat.mean()))
+
+    def plot(self):
+        # plot this array's data on a map, e.g., using Cartopy
+        pass
+
+
+ds = pd.DataFrame({"longitude": np.linspace(0, 10), "latitude": np.linspace(0, 20)})
+ds.geo.center()
+
+
+if __name__ == "__main__":
+    # Just some test data down here.
+    gap_data = get_nwis(
+        STAID="12301933",
+        start_date="2023-01-03",
+        end_date="2023-01-04",
+        param="63680",
+        gap_tol="15min",
+    )
+
+    # data = get_nwis(
+    #     STAID="12301250",
+    #     start_date="2023-01-02",
+    #     end_date="2023-01-05",
+    #     param="00060",
+    #     service="dv",
+    #     gap_tol="D",
+    # )
+    # data.gap_index()
+    gap_data.nwisframe.fill_gaps("15min")
+    pause = 2
