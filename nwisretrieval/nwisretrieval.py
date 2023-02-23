@@ -139,7 +139,8 @@ class NWISFrame(pd.DataFrame):
         -----
         Currently only checking for Ice qualifiers.  May need to add more for equipment malfunctions, etc.
         """
-        unique_quals = list(pd.unique(self["qualifiers"].apply(frozenset)))
+        mask = ~self["qualifiers"].isnull()
+        unique_quals = list(pd.unique(self["qualifiers"][mask].apply(frozenset)))
         for qual in unique_quals:
             if "Ice" in qual or "i" in qual:
                 return "Ice"
@@ -188,6 +189,8 @@ class NWISFrame(pd.DataFrame):
         try:
             self = self.asfreq(freq=gap_tol)
             self._metadict["_gap_tolerance"] = gap_tol
+            # self["qualifiers"][self["qualifiers"].isnull()] = NWISFrame.Unknown
+            # self["qualifier_set"] = self["qualifiers"].map(set)
             return self
         except ValueError:
             warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
@@ -209,7 +212,8 @@ class NWISFrame(pd.DataFrame):
         Notes
         -----
         """
-        unique_quals = list(pd.unique(self["qualifiers"].apply(frozenset)))
+        mask = ~self["qualifiers"].isnull()
+        unique_quals = list(pd.unique(self["qualifiers"][mask].apply(frozenset)))
         approval_level = next(
             ("Provisional" for approval in unique_quals if "P" in approval),
             "Approved",
@@ -452,6 +456,69 @@ def get_nwis(
     dataframe.check_quals()
     dataframe.check_approval()
     dataframe.check_gaps()
+    return dataframe
+
+
+def getNWISmeteoDataMULTI(
+    STAID: str,
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    """Pull air temp, RH, net solar, and wind speed data down from NWIS based on site, start date end date.
+
+    Parameters
+    ----------
+    STAID : str
+        NWIS site ID
+    start_date : str
+        Start of the data pull 'YYYY-MM-DD'
+    end_date : str
+        End date of the data pull 'YYYY-MM-DD'
+
+    Returns
+    -------
+    pd.DateFrame
+
+    Notes
+    -----
+    Met Station at Milk R Eastern Crossing Intl Bndry, post 2019-10-02.
+    Previous data housed at 06135000
+
+    Some common meteorology measurement parameter values:
+            - 00020 - air temperature - degC
+            - 00052 - Relative Humidity - percent
+            - 62609 - Net solar radiation - W/m^2
+            - 62625 - Wind speed - m/s
+
+    """
+
+    print(f"S - Loading NWIS air temp, relative humidity, net solar radiation, and wind speed at {STAID}")
+    url = f"https://waterdata.usgs.gov/nwis/dv?cb_00020=on&cb_00052=on&cb_62609=on&cb_62625=on&format=rdb&site_no={STAID}&referred_module=sw&period=&begin_date={start_date}&end_date={end_date}"
+    print(url)
+    dataframe = pd.read_csv(url, sep="\t", comment="#")
+    dataframe.drop(labels=[0], inplace=True, axis=0)
+    dataframe.drop(
+        labels=[
+            "site_no",
+            "agency_cd",
+            "297970_00052_00003_cd",
+            "297971_62609_00003_cd",
+            "297973_00020_00003_cd",
+            "297974_62625_00003_cd",
+        ],
+        inplace=True,
+        axis=1,
+    )
+
+    dataframe["datetime"] = pd.to_datetime(dataframe["datetime"])
+    dataframe = dataframe.set_index("datetime")
+    dataframe = dataframe.rename(columns={"297971_62609_00003": "Rnet", "297970_00052_00003": "Rh", "297973_00020_00003": "T", "297974_62625_00003": "U"})
+    dataframe["Rnet"] = pd.to_numeric(dataframe["Rnet"])
+    dataframe["Rh"] = pd.to_numeric(dataframe["Rh"])
+    dataframe["T"] = pd.to_numeric(dataframe["T"])
+    dataframe["U"] = pd.to_numeric(dataframe["U"])
+    idx = pd.date_range(start_date, end_date)
+    dataframe = dataframe.reindex(idx, fill_value=np.NaN)
     return dataframe
 
 
