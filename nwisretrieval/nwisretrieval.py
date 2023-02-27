@@ -152,12 +152,14 @@ class NWISFrame(pd.DataFrame):
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> bool | object:
-        """Checks for gaps in time-series data.
+        """Checks for gaps in time-series data DateTimeIndex.
+
         Parameters
         ----------
         gap_tol : str | None, optional
             Gap tolerance, by default None
             If no gap tolerance is specified, fall back on self.gap_tolerance property
+            If no self.gap_tolerance property, return NWIS.Unknown sentinel object.
 
         Returns
         -------
@@ -165,6 +167,13 @@ class NWISFrame(pd.DataFrame):
             True if gaps are present in the index
             False if no gaps are found in the index
             If neither gap_tol or self.gap_tolerance property are specified, returns sentinel object: NWISFrame.unknown
+
+        Notes
+        -----
+        A NWIS.Unknown sentinel object is returned if no gap_tolerance can be located either
+        from the check_gaps function or the NWISFrame.  False and None sound like valid returns
+        and thus a sentinel object is returned called "Unknown" to make it clear that the check_gaps
+        function did not find any gaps because a gap_tol was not found.
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         if gap_tol == NWISFrame.Unknown:
@@ -174,11 +183,11 @@ class NWISFrame(pd.DataFrame):
         if gap_index.index.empty:
             return False
         if start_date and end_date:
-            if gap_index[start_date: end_date].empty:
+            if gap_index[start_date:end_date].empty:
                 return False
             # This section is kinda getto, need to work on formatting warning message of missing dates.
             warnings.warn(f"\nGaps detected at: {self.STAID} with a tolerance of {gap_tol} on:", stacklevel=2)
-            for missing_val in gap_index[start_date: end_date].index.array:
+            for missing_val in gap_index[start_date:end_date].index.array:
                 print(missing_val)
             return True
         warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
@@ -188,6 +197,18 @@ class NWISFrame(pd.DataFrame):
         self,
         gap_tol: str | None = None,
     ) -> pd.DatetimeIndex:
+        """Returns a pandas DateTimeIndex of periods of missing data.
+
+        Parameters
+        ----------
+        gap_tol : str | None, optional
+            Gap tolerance to check time series for gaps by, by default None
+
+        Returns
+        -------
+        pd.DatetimeIndex
+            Index of missing dates in the time-series data.
+        """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         idx = pd.date_range(self.start_date, self.end_date, freq=gap_tol)
         return idx.difference(self.index)
@@ -196,6 +217,18 @@ class NWISFrame(pd.DataFrame):
         self,
         gap_tol: str | None = None,
     ) -> NWISFrame:
+        """Fill gaps in time-series data with NaN values.
+
+        Parameters
+        ----------
+        gap_tol : str | None, optional
+            Gap tolerance to check time-series for gaps by, by default None
+
+        Returns
+        -------
+        NWISFrame
+            Return new instance of NWISFrame with gaps filled by NaN values
+        """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         try:
             self = self.asfreq(freq=gap_tol)
@@ -257,9 +290,7 @@ class NWISFrame(pd.DataFrame):
         """
         If no gap_tol, fall back on self.gap_tolerance property.
 
-        If gap_tol is None and self.gap_tolerance is None, return None
-
-        If neither gap_tol or self.gap_tolerance, return "unknown"
+        If gap_tol is None and self.gap_tolerance is None, return "Unknown" sentinel object.
         """
         if gap_tol is None:
             return self.gap_tolerance if self.gap_tolerance is not None else NWISFrame.Unknown
@@ -269,7 +300,7 @@ class NWISFrame(pd.DataFrame):
 def query_url(
     url: str,
 ) -> Response:
-    """Qurey NWIS url
+    """Qurey NWIS url with requests package.
 
     Parameters
     ----------
@@ -297,6 +328,34 @@ def create_metadict(
     rdata: dict | None = None,
     **kwargs,
 ) -> dict:
+    """Creates metadictionary for NWISFrame.
+
+    Parameters
+    ----------
+    rdata : dict | None, optional
+        JSON response data from NWIS, by default None
+
+    Returns
+    -------
+    dict
+        Dictionary of metadata for NWISFrame.
+
+    Notes
+    -----
+    Valid kwargs:
+        ""STAID"
+        "start_date"
+        "end_date"
+        "param"
+        "stat_code"
+        "service"
+        "access"
+        "url"
+        "gap_tol"
+        "gap_fill"
+        "resolve_masking"
+        "_approval"
+    """
     metadict = dict(
         {
             "_STAID": kwargs.get("STAID", NWISFrame.Unknown),
@@ -339,19 +398,21 @@ def process_nwis_response(
     url : str
         Query url
     response : Response
-        response object
+        requests package response object
     rdata : dict
         JSON data from NWIS url
 
     Returns
     -------
     pd.DataFrame
-        DateTimeIndex, values, approval/qualifiers
+        Columns: values, approval/qualifiers
+        Index: DateTimeIndex
 
     Raises
     ------
     SystemExit
         If DataFrame returned from NWIS is empty, exit the program.
+        Why continue if there's no data?
     """
     dataframe = pd.json_normalize(rdata, ["value", "timeSeries", "values", "value"])
     if dataframe.empty is True:
@@ -365,14 +426,38 @@ def process_nwis_response(
 
 
 def build_url(
-    STAID,
-    start_date,
-    end_date,
-    param,
-    stat_code,
-    service,
-    access,
+    STAID: str | int,
+    start_date: str,
+    end_date: str,
+    param: str,
+    stat_code: str,
+    service: str,
+    access: str | int,
 ) -> str:
+    """Generate URL to retrieve NWIS data from.
+
+    Parameters
+    ----------
+    STAID : str | int
+        NWIS station ID
+    start_date : str
+        Start date of data pull range.
+    end_date : str
+        End date of data pull range.
+    param : str
+        Parameter code, e.g. 00060
+    stat_code : str
+        Statistical code
+    service : str
+        "iv": instantanious data services, "dv": daily value service
+    access : str | int
+        NWIS access level.  0 - Public, 1 - Coop, 2 - Internal USGS
+
+    Returns
+    -------
+    str
+        URL of data to query from NWIS.
+    """
     service_urls = {
         "dv": f"https://nwis.waterservices.usgs.gov/nwis/dv/?format=json&sites={STAID}&startDT={start_date}&endDT={end_date}&statCd={stat_code}&parameterCd={param}&siteStatus=all&access={access}",
         "iv": f"https://nwis.waterservices.usgs.gov/nwis/iv/?format=json&sites={STAID}&parameterCd={param}&startDT={start_date}&endDT={end_date}&siteStatus=all&access={access}",
@@ -386,7 +471,6 @@ def get_nwis(
     end_date: str,
     param: str,
     stat_code: str = "00003",
-    # stat_code: str =
     service: str = "iv",
     access: int = 0,
     gap_tol: str | None = None,
@@ -394,6 +478,7 @@ def get_nwis(
     resolve_masking: bool = False,
 ) -> NWISFrame:
     """Retreives NWIS time-series data as a dataframe with extended methods and metadata properties.
+    referred to as an NWISFrame
 
     Parameters
     ----------
@@ -472,8 +557,7 @@ def get_nwis(
 
 if __name__ == "__main__":
     # Just some test data down here.
-    # meteo = getNWISmeteoDataMULTI("485831110252101", "2022-06-01", "2022-07-01")
-    
+
     gap_data = get_nwis(
         STAID="12301933",
         start_date="2023-01-03",
@@ -481,7 +565,6 @@ if __name__ == "__main__":
         param="63680",
         # gap_tol="15min",
     )
-
     # data = get_nwis(
     #     STAID="485831110252101",
     #     start_date="2021-07-01",
@@ -491,5 +574,5 @@ if __name__ == "__main__":
     #     gap_tol="D",
     # )
     # data.gap_index()
-    gap_data.check_gaps("15min", start_date='2023-01-03 16:45:00', end_date='2023-01-03 17:00:00')
+    gap_data.check_gaps("15min", start_date="2023-01-03 16:45:00", end_date="2023-01-03 17:00:00")
     pause = 2
