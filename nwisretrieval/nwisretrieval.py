@@ -231,7 +231,12 @@ class NWISFrame(pd.DataFrame):
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         try:
-            self = self.asfreq(freq=gap_tol)
+            self = (
+                self.reindex(pd.date_range(self.start_date, self.end_date, freq=gap_tol))
+                .rename_axis(['dateTime'])
+                .fillna(float('NaN'))
+            )
+            # self = self.asfreq(freq=gap_tol)
             self._metadict["_gap_tolerance"] = gap_tol
             # self["qualifiers"][self["qualifiers"].isnull()] = NWISFrame.Unknown
             # self["qualifier_set"] = self["qualifiers"].map(set)
