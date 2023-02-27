@@ -109,7 +109,7 @@ class NWISFrame(pd.DataFrame):
 
     @property
     def gap_tolerance(self):
-        return str(self._metadict.get("_gap_tolerance"))
+        return self._metadict.get("_gap_tolerance")
 
     @property
     def gaps(self):
@@ -149,6 +149,8 @@ class NWISFrame(pd.DataFrame):
     def check_gaps(
         self,
         gap_tol: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> bool | object:
         """Checks for gaps in time-series data.
         Parameters
@@ -166,10 +168,19 @@ class NWISFrame(pd.DataFrame):
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         if gap_tol == NWISFrame.Unknown:
-            warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
+            warnings.warn(f"\nWarning: No gap tolerance specified for {self.STAID}.", stacklevel=2)
             return NWISFrame.Unknown
-        if self.gap_index(gap_tol).empty:
+        gap_index = self.gap_index(gap_tol).to_frame()
+        if gap_index.index.empty:
             return False
+        if start_date and end_date:
+            if gap_index[start_date: end_date].empty:
+                return False
+            # This section is kinda getto, need to work on formatting warning message of missing dates.
+            warnings.warn(f"\nGaps detected at: {self.STAID} with a tolerance of {gap_tol} on:", stacklevel=2)
+            for missing_val in gap_index[start_date: end_date].index.array:
+                print(missing_val)
+            return True
         warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
         return True
 
@@ -455,91 +466,30 @@ def get_nwis(
         dataframe.resolve_masks()
     dataframe.check_quals()
     dataframe.check_approval()
-    dataframe.check_gaps()
-    return dataframe
-
-
-def getNWISmeteoDataMULTI(
-    STAID: str,
-    start_date: str,
-    end_date: str,
-) -> pd.DataFrame:
-    """Pull air temp, RH, net solar, and wind speed data down from NWIS based on site, start date end date.
-
-    Parameters
-    ----------
-    STAID : str
-        NWIS site ID
-    start_date : str
-        Start of the data pull 'YYYY-MM-DD'
-    end_date : str
-        End date of the data pull 'YYYY-MM-DD'
-
-    Returns
-    -------
-    pd.DateFrame
-
-    Notes
-    -----
-    Met Station at Milk R Eastern Crossing Intl Bndry, post 2019-10-02.
-    Previous data housed at 06135000
-
-    Some common meteorology measurement parameter values:
-            - 00020 - air temperature - degC
-            - 00052 - Relative Humidity - percent
-            - 62609 - Net solar radiation - W/m^2
-            - 62625 - Wind speed - m/s
-
-    """
-
-    print(f"S - Loading NWIS air temp, relative humidity, net solar radiation, and wind speed at {STAID}")
-    url = f"https://waterdata.usgs.gov/nwis/dv?cb_00020=on&cb_00052=on&cb_62609=on&cb_62625=on&format=rdb&site_no={STAID}&referred_module=sw&period=&begin_date={start_date}&end_date={end_date}"
-    print(url)
-    dataframe = pd.read_csv(url, sep="\t", comment="#")
-    dataframe.drop(labels=[0], inplace=True, axis=0)
-    dataframe.drop(
-        labels=[
-            "site_no",
-            "agency_cd",
-            "297970_00052_00003_cd",
-            "297971_62609_00003_cd",
-            "297973_00020_00003_cd",
-            "297974_62625_00003_cd",
-        ],
-        inplace=True,
-        axis=1,
-    )
-
-    dataframe["datetime"] = pd.to_datetime(dataframe["datetime"])
-    dataframe = dataframe.set_index("datetime")
-    dataframe = dataframe.rename(columns={"297971_62609_00003": "Rnet", "297970_00052_00003": "Rh", "297973_00020_00003": "T", "297974_62625_00003": "U"})
-    dataframe["Rnet"] = pd.to_numeric(dataframe["Rnet"])
-    dataframe["Rh"] = pd.to_numeric(dataframe["Rh"])
-    dataframe["T"] = pd.to_numeric(dataframe["T"])
-    dataframe["U"] = pd.to_numeric(dataframe["U"])
-    idx = pd.date_range(start_date, end_date)
-    dataframe = dataframe.reindex(idx, fill_value=np.NaN)
+    dataframe.check_gaps(gap_tol=gap_tol)
     return dataframe
 
 
 if __name__ == "__main__":
     # Just some test data down here.
+    # meteo = getNWISmeteoDataMULTI("485831110252101", "2022-06-01", "2022-07-01")
+    
     gap_data = get_nwis(
         STAID="12301933",
         start_date="2023-01-03",
         end_date="2023-01-04",
         param="63680",
-        gap_tol="15min",
+        # gap_tol="15min",
     )
 
     # data = get_nwis(
-    #     STAID="12301250",
-    #     start_date="2023-01-02",
-    #     end_date="2023-01-05",
-    #     param="00060",
+    #     STAID="485831110252101",
+    #     start_date="2021-07-01",
+    #     end_date="2021-07-10",
+    #     param="00020",
     #     service="dv",
     #     gap_tol="D",
     # )
     # data.gap_index()
-    gap_data.fill_gaps("15min")
+    gap_data.check_gaps("15min", start_date='2023-01-03 16:45:00', end_date='2023-01-03 17:00:00')
     pause = 2
