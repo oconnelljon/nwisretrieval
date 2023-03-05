@@ -5,31 +5,160 @@ import pandas as pd
 # pause = 2
 
 
-def construct_url(
-    staid: str | int,
-    start_date: str,
-    end_date: str,
-    pcode: str | list | None = None,
-) -> str:
-    if isinstance(pcode, list):
-        pcode = ";".join(pcode)
-        return f"https://www.waterqualitydata.us/data/Result/search?siteid=USGS-{staid}&startDateLo={start_date}&startDateHi={end_date}&pCode={pcode}&mimeType=csv"
-    if pcode is None:
-        return f"https://www.waterqualitydata.us/data/Result/search?siteid=USGS-{staid}&startDateLo={start_date}&startDateHi={end_date}&mimeType=csv"
-    return f"https://www.waterqualitydata.us/data/Result/search?siteid=USGS-{staid}&startDateLo={start_date}&startDateHi={end_date}&pCode={pcode}&mimeType=csv"
+def _get_base_url(service: str) -> str:
+    """Get the base url for the selected QWP service.
+
+    Parameters
+    ----------
+    service : str
+        Web service to query QWP with.
+
+    Returns
+    -------
+    str
+        QWP web service base url.
+    """
+    WEB_SERVICES_DICT = {
+        "project": "https://www.waterqualitydata.us/data/Project/search?",
+        "site metadata": "https://www.waterqualitydata.us/data/Station/search?",
+        "results": "https://www.waterqualitydata.us/data/Result/search?",
+        "result detection": "https://www.waterqualitydata.us/data/ResultDetectionQuantitationLimit/search?",
+        "activity": "https://www.waterqualitydata.us/data/Activity/search?",
+        "activity metric": "https://www.waterqualitydata.us/data/ActivityMetric/search?",
+        "biological metric": "https://www.waterqualitydata.us/data/BiologicalMetric/search?",
+        "project weighting": "https://www.waterqualitydata.us/data/ProjectMonitoringLocationWeighting/search?",
+    }
+    return WEB_SERVICES_DICT.get(service, "Invalid")
+
+
+def _construct_url_query(**kwargs) -> str:
+    """Convert kwargs to parameter=argument pairs to url query
+    kwargs are validated and and returned as part of the query if they are
+    valid QWP parameter/query pairs.
+
+    Returns
+    -------
+    str
+        parmeter=argument pairs concantenated with '&'
+        to be appened to base service url for querying QWP data.
+    Notes
+    -----
+    getqwp() is expecting csv data to be queried. mimeType is the parameter
+    QWP uses to specify the format of the queried data. The mimeType is hardcoded
+    here until other formats are supported.
+    """
+    kwargs["mimeType"] = "csv"
+    if "pCode" in kwargs and isinstance(kwargs["pCode"], list):
+        kwargs["pCode"] = ";".join(kwargs["pCode"])
+    if "siteid" in kwargs:
+        kwargs["siteid"] = "USGS-" + kwargs["siteid"]
+    valid_kwargs = _validate_url_kwargs(kwargs)
+    REST_param_args = ["=".join([key, val]) for key, val in valid_kwargs.items()]
+    return "&".join(REST_param_args)
+
+
+def _validate_url_kwargs(kwargs) -> dict:
+    """Validate kwargs for QWP paremeter=argument pairs.
+    Removes any kwargs that do not have valid keys in REST_PARAMETERS.
+
+    Parameters
+    ----------
+    kwargs : dict
+        parameter: argument pairs to validate before concantenating
+        to base service url.
+
+    Returns
+    -------
+    dict
+        Valid parameter=argument pairs to query QWP.
+        QWP can only accept these parameters, so ignore anything else.
+    """
+    REST_PARAMETERS = {
+        "bBox",
+        "lat",
+        "long",
+        "within",
+        "countrycode",
+        "statecode",
+        "countycode",
+        "organization",
+        "siteid",
+        "huc",
+        "sampleMedia",
+        "characteristicName",
+        "pCode",
+        "activityId",
+        "startDateLo",
+        "startDateHi",
+        "mimeType",
+        "Zip",
+        "providers",
+        "sorted",
+        "dataProfile",
+    }
+    valid_keys = REST_PARAMETERS & set(kwargs.keys())
+    return {key: kwargs[key] for key in valid_keys}
+
+
+def _construct_url(service: str, **kwargs) -> str:
+    """Construct URL with a base and query parameter=argument pairs.
+
+    Parameters
+    ----------
+    service : str
+        QWP service to query.
+
+    Returns
+    -------
+    str
+        URL to query QWP with.
+    """
+    base_url = _get_base_url(service)
+    url_args = _construct_url_query(**kwargs)
+    return base_url + url_args
 
 
 def getqwp(
-    staid: str | int,
-    start_date: str,
-    end_date: str,
-    pcode: str | list | None = None,
+    siteid: str | int,
+    startDateLo: str,
+    service: str,
+    **kwargs,
 ) -> pd.DataFrame:
-    url = construct_url(
-        staid=staid,
-        start_date=start_date,
-        end_date=end_date,
-        pcode=pcode,
+    """Query the QWP and return a pandas DataFrame.
+    The function accepts any valid parameter=argument pairs from table 1 found here:
+    https://www.waterqualitydata.us/webservices_documentation/
+
+    Parameters
+    ----------
+    siteid : str | int
+        Station ID
+    startDateLo : str
+        Date to begin data query
+    service : str
+        QWP service to query.  Currently only "results" have been tested.
+        Other potentially valid services:
+        "project"
+        "site metadata"
+        "results"
+        "result detection"
+        "activity"
+        "activity metric"
+        "biological metric"
+        "project weighting"
+
+    Returns
+    -------
+    pd.DataFrame
+        DateTime indexed dataframe of QWP query results.
+    Notes
+    -----
+
+    """
+    url = _construct_url(
+        siteid=siteid,
+        startDateLo=startDateLo,
+        service=service,
+        **kwargs,
     )
     dataframe = pd.read_csv(url, dtype={"USGSPCode": str})
     if dataframe.empty is True:
@@ -67,12 +196,13 @@ def getqwp(
     return dataframe
 
 
-data = getqwp(
-    staid="433615110440001",
-    start_date="01-01-2020",
-    end_date="01-01-2023",
-    # pcode=None,
-    # pcode=["00400", "00010", "00925", "00935", "01040"],
-)
-print(data)
-pause = 2
+if __name__ == "__main__":
+    data = getqwp(
+        siteid="433615110440001",
+        startDateLo="01-01-2020",
+        startDateHi="01-01-2023",
+        service="results",
+        pCode=["00400", "00010"],  # , "00925", "00935", "01040"
+    )
+    print(data)
+    pause = 2
