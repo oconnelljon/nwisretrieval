@@ -28,7 +28,7 @@ def _get_base_url(service: str) -> str:
         "biological metric": "https://www.waterqualitydata.us/data/BiologicalMetric/search?",
         "project weighting": "https://www.waterqualitydata.us/data/ProjectMonitoringLocationWeighting/search?",
     }
-    return WEB_SERVICES_DICT.get(service, "Invalid")
+    return WEB_SERVICES_DICT.get(service, "Invalid Service")
 
 
 def _construct_url_query(**kwargs) -> str:
@@ -51,6 +51,7 @@ def _construct_url_query(**kwargs) -> str:
     if "pCode" in kwargs and isinstance(kwargs["pCode"], list):
         kwargs["pCode"] = ";".join(kwargs["pCode"])
     if "siteid" in kwargs:
+        # QWP needs an agency identifier before the STAID
         kwargs["siteid"] = "USGS-" + kwargs["siteid"]
     valid_kwargs = _validate_url_kwargs(kwargs)
     REST_param_args = ["=".join([key, val]) for key, val in valid_kwargs.items()]
@@ -118,6 +119,30 @@ def _construct_url(service: str, **kwargs) -> str:
     return base_url + url_args
 
 
+def _set_datetime_index(dataframe: pd.DataFrame) -> None:
+    """Combine date and time columns to a DateTimeIndex.  Operates in place.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        DataFrame returned from QWP query
+
+    Returns
+    -------
+    None
+        Operates on dataframe in place, no return value.
+    """
+    dataframe["dateTime"] = (
+        dataframe["ActivityStartDate"] + " " + dataframe["ActivityStartTime/Time"]
+    )
+    dataframe["dateTime"] = pd.to_datetime(
+        dataframe["dateTime"].array,
+        infer_datetime_format=True,
+    )
+    dataframe.set_index("dateTime", inplace=True)
+    return None
+
+
 def getqwp(
     siteid: str | int,
     startDateLo: str,
@@ -125,15 +150,15 @@ def getqwp(
     **kwargs,
 ) -> pd.DataFrame:
     """Query the QWP and return a pandas DataFrame.
-    The function accepts any valid parameter=argument pairs from table 1 found here:
-    https://www.waterqualitydata.us/webservices_documentation/
+    Parameter kwargs can be any valid parameter-argument pair for QWP.
+    If pCode is not specified, all parameters are queried.
 
     Parameters
     ----------
     siteid : str | int
         Station ID
     startDateLo : str
-        Date to begin data query
+        Date to begin data query in the format MM-DD-YYYY
     service : str
         QWP service to query.  Currently only "results" have been tested.
         Other potentially valid services:
@@ -152,6 +177,11 @@ def getqwp(
         DateTime indexed dataframe of QWP query results.
     Notes
     -----
+    The function accepts any valid parameter=argument pairs from table 1 found here:
+    https://www.waterqualitydata.us/webservices_documentation/
+
+    pCodes can be found here:
+    http://water.nv.gov/hearings/past/Spring%20Valley%202006/exhibits/SNWA/5__Hydrochemistry_and_Geochemistry/Data/USGS/USGS_NWIS/ParameterCodes.htm
 
     """
     url = _construct_url(
@@ -160,17 +190,13 @@ def getqwp(
         service=service,
         **kwargs,
     )
+    # USGS has leading '0's in pCodes.  Treat them as strings to avoid dropping them.
     dataframe = pd.read_csv(url, dtype={"USGSPCode": str})
     if dataframe.empty is True:
         print(f"Warning!  No data found at: {url}")
-    dataframe["dateTime"] = (
-        dataframe["ActivityStartDate"] + " " + dataframe["ActivityStartTime/Time"]
-    )
-    dataframe["dateTime"] = pd.to_datetime(
-        dataframe["dateTime"].array,
-        infer_datetime_format=True,
-    )
-    dataframe.set_index("dateTime", inplace=True)
+    # Combine date and time columns and form dateTime index
+    _set_datetime_index(dataframe)
+    # Remove excessive columns and rename
     dataframe = dataframe.loc[
         :,
         [
