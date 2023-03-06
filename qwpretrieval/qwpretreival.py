@@ -1,3 +1,5 @@
+import warnings
+
 import pandas as pd
 
 # url = "https://www.waterqualitydata.us/data/Result/search?siteid=USGS-433615110440001&startDateLo=10-01-2020&startDateHi=10-01-2023&pCode=00400&mimeType=csv"
@@ -32,7 +34,7 @@ def _get_base_url(service: str) -> str:
 
 
 def _construct_url_query(**kwargs) -> str:
-    """Convert kwargs to parameter=argument pairs to url query
+    """Convert kwargs to parameter=argument pairs to url query.
     kwargs are validated and and returned as part of the query if they are
     valid QWP parameter/query pairs.
 
@@ -152,6 +154,7 @@ def getqwp(
     """Query the QWP and return a pandas DataFrame.
     Parameter kwargs can be any valid parameter-argument pair for QWP.
     If pCode is not specified, all parameters are queried.
+    Pass multiple pCodes as a list.
 
     Parameters
     ----------
@@ -175,6 +178,7 @@ def getqwp(
     -------
     pd.DataFrame
         DateTime indexed dataframe of QWP query results.
+
     Notes
     -----
     The function accepts any valid parameter=argument pairs from table 1 found here:
@@ -190,13 +194,15 @@ def getqwp(
         service=service,
         **kwargs,
     )
-    # USGS has leading '0's in pCodes.  Treat them as strings to avoid dropping them.
+    # USGS has leading '0's in pCodes. Treat them as strings to avoid dropping them.
     dataframe = pd.read_csv(url, dtype={"USGSPCode": str})
     if dataframe.empty is True:
-        print(f"Warning!  No data found at: {url}")
-    # Combine date and time columns and form dateTime index
+        warnings.warn(f"\nNo data for station {siteid} at:\n{url}", stacklevel=2)
+    # Combine date and time columns and form dateTime index.
     _set_datetime_index(dataframe)
-    # Remove excessive columns and rename
+    #  QWP attaches an agency identifier to the siteid. Remove that identifier.
+    dataframe["test"] = dataframe["MonitoringLocationIdentifier"].str.slice(5)
+    # Remove excessive columns and rename.
     dataframe = dataframe.loc[
         :,
         [
@@ -228,7 +234,8 @@ if __name__ == "__main__":
         startDateLo="01-01-2020",
         startDateHi="01-01-2023",
         service="results",
-        pCode=["00400", "00010"],  # , "00925", "00935", "01040"
+        # pCode=["00400", "00010"],  # , "00925", "00935", "01040"
     )
-    print(data)
+    # print(data)
+    # data.to_csv("data.txt")
     pause = 2
