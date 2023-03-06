@@ -190,7 +190,7 @@ class NWISFrame(pd.DataFrame):
             for missing_val in gap_index[start_date:end_date].index.array:
                 print(missing_val)
             return True
-        warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}")
+        warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}", stacklevel=2)
         return True
 
     def gap_index(
@@ -242,7 +242,7 @@ class NWISFrame(pd.DataFrame):
             # self["qualifier_set"] = self["qualifiers"].map(set)
             return self
         except ValueError:
-            warnings.warn(f"Warning: No gap tolerance specified for {self.STAID}.")
+            warnings.warn(f"No gap tolerance specified for {self.STAID}.", stacklevel=2)
             return self
 
     def check_approval(self) -> str:
@@ -477,7 +477,7 @@ def get_nwis(
     param: str,
     stat_code: str = "00003",
     service: str = "iv",
-    access: int = 0,
+    access: str | int = 0,
     gap_tol: str | None = None,
     gap_fill: bool = False,
     resolve_masking: bool = False,
@@ -500,7 +500,7 @@ def get_nwis(
         Use "32400" for midnight values
     service : str, optional
         Service, e.g. "iv" or "dv", by default "iv"
-    access : int, optional
+    access : int | str, optional
         Access level.  0 - Public, 1 - Coop, 2 - Internal, by default 0
     gap_tol : str | None, optional
         gap tolerance of time-series, "15min" = 15 minute gap tolerance, "D" = 24hr tolerance, by default None
