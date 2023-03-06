@@ -187,6 +187,8 @@ def getqwp(
     pCodes can be found here:
     http://water.nv.gov/hearings/past/Spring%20Valley%202006/exhibits/SNWA/5__Hydrochemistry_and_Geochemistry/Data/USGS/USGS_NWIS/ParameterCodes.htm
 
+    The function argument naming convention is meant to follow that of QWP parameters
+    and thus do not follow classic "pythonic" conventions.
     """
     url = _construct_url(
         siteid=siteid,
