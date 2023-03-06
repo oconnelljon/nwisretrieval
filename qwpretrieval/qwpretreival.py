@@ -201,7 +201,9 @@ def getqwp(
     # Combine date and time columns and form dateTime index.
     _set_datetime_index(dataframe)
     #  QWP attaches an agency identifier to the siteid. Remove that identifier.
-    dataframe["test"] = dataframe["MonitoringLocationIdentifier"].str.slice(5)
+    dataframe["teMonitoringLocationIdentifierst"] = dataframe[
+        "MonitoringLocationIdentifier"
+    ].str.slice(5)
     # Remove excessive columns and rename.
     dataframe = dataframe.loc[
         :,
