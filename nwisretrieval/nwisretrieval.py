@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import warnings
+
 import numpy as np
 import pandas as pd
 import requests
@@ -8,7 +10,8 @@ from requests.models import Response
 
 
 class NWISFrame(pd.DataFrame):
-    """Inherits from pandas DataFrame to extend properties and methods specific to NWIS time-series data.
+    """Inherits from pandas DataFrame to extend properties and
+    methods specific to NWIS time-series data.
 
     Parameters
     ----------
@@ -18,7 +21,8 @@ class NWISFrame(pd.DataFrame):
     Returns
     -------
     NWISFrame
-        Extended pd.DataFrame.  Acts like a normal DataFrame, but with NWIS specific properties and methods.
+        Extended pd.DataFrame.  Acts like a normal DataFrame,
+        but with NWIS specific properties and methods.
 
     Notes
     -----
@@ -137,7 +141,8 @@ class NWISFrame(pd.DataFrame):
 
         Notes
         -----
-        Currently only checking for Ice qualifiers.  May need to add more for equipment malfunctions, etc.
+        Currently only checking for Ice qualifiers.
+        May need to add more for equipment malfunctions, etc.
         """
         mask = ~self["qualifiers"].isnull()
         unique_quals = list(pd.unique(self["qualifiers"][mask].apply(frozenset)))
@@ -166,18 +171,22 @@ class NWISFrame(pd.DataFrame):
         bool | None
             True if gaps are present in the index
             False if no gaps are found in the index
-            If neither gap_tol or self.gap_tolerance property are specified, returns sentinel object: NWISFrame.unknown
+            If neither gap_tol or self.gap_tolerance property are specified,
+            returns sentinel object: NWISFrame.unknown
 
         Notes
         -----
-        A NWIS.Unknown sentinel object is returned if no gap_tolerance can be located either
-        from the check_gaps function or the NWISFrame.  False and None sound like valid returns
-        and thus a sentinel object is returned called "Unknown" to make it clear that the check_gaps
+        A NWIS.Unknown sentinel object is returned if no gap_tolerance can
+        be located either from the check_gaps function or the NWISFrame.
+        False and None sound like valid returns and thus a sentinel object
+        is returned called "Unknown" to make it clear that the check_gaps
         function did not find any gaps because a gap_tol was not found.
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         if gap_tol == NWISFrame.Unknown:
-            warnings.warn(f"\nWarning: No gap tolerance specified for {self.STAID}.", stacklevel=2)
+            warnings.warn(
+                f"\nNo gap tolerance specified for {self.STAID}.", stacklevel=2
+            )
             return NWISFrame.Unknown
         gap_index = self.gap_index(gap_tol).to_frame()
         if gap_index.index.empty:
@@ -186,11 +195,17 @@ class NWISFrame(pd.DataFrame):
             if gap_index[start_date:end_date].empty:
                 return False
             # This section is kinda getto, need to work on formatting warning message of missing dates.
-            warnings.warn(f"\nGaps detected at: {self.STAID} with a tolerance of {gap_tol} on:", stacklevel=2)
+            warnings.warn(
+                f"\nGaps detected at: {self.STAID} with a tolerance of {gap_tol} on:",
+                stacklevel=2,
+            )
             for missing_val in gap_index[start_date:end_date].index.array:
                 print(missing_val)
             return True
-        warnings.warn(f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}", stacklevel=2)
+        warnings.warn(
+            f"Gaps detected at: {self.STAID} with a tolerance of {gap_tol}",
+            stacklevel=2,
+        )
         return True
 
     def gap_index(
@@ -233,8 +248,8 @@ class NWISFrame(pd.DataFrame):
         try:
             self = (
                 self.reindex(pd.date_range(self.start_date, self.end_date, freq=gap_tol))
-                .rename_axis(['dateTime'])
-                .fillna(float('NaN'))
+                .rename_axis(["dateTime"])
+                .fillna(float("NaN"))
             )
             # self = self.asfreq(freq=gap_tol)
             self._metadict["_gap_tolerance"] = gap_tol
@@ -320,7 +335,8 @@ def query_url(
     Raises
     ------
     SystemExit
-        If status code is not 200, some error has occured and no data was returned, exit the program.
+        If status code is not 200, some error has occured and no data was
+        returned, exit the program.
     """
     response = requests.get(url)
     if response.status_code != 200:
@@ -392,20 +408,26 @@ def create_metadict(
 
 
 def process_nwis_response(
-    url: str,
-    response: Response,
     rdata: dict,
+    record_path: list | None = None,
+    datetime_col: str = "dateTime",
+    value_col: str = "value",
 ) -> pd.DataFrame:
     """Process JSON data from NWIS to pd.DataFrame
+    Defaults are set for NWIS queries.
 
     Parameters
     ----------
-    url : str
-        Query url
-    response : Response
-        requests package response object
     rdata : dict
         JSON data from NWIS url
+    record_path : list | None, optional
+        Path to values to normalize, by default "value"
+    datetime_col : str, optional
+        Column containing datetime values to convert to DateTimeIndex
+        By default "dateTime"
+    value_col : str, optional
+        Column containing retrieved data values to coerce to a numeric dtype
+        By default "value"
 
     Returns
     -------
@@ -419,14 +441,15 @@ def process_nwis_response(
         If DataFrame returned from NWIS is empty, exit the program.
         Why continue if there's no data?
     """
-    dataframe = pd.json_normalize(rdata, ["value", "timeSeries", "values", "value"])
-    if dataframe.empty is True:
-        print(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
-        raise SystemExit
-    dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
-    dataframe.set_index("dateTime", inplace=True)
+    if record_path is None:
+        record_path = ["value", "timeSeries", "values", "value"]
+    dataframe = pd.json_normalize(rdata, record_path=record_path)
+    dataframe[datetime_col] = pd.to_datetime(
+        dataframe[datetime_col].array, infer_datetime_format=True
+    )
+    dataframe.set_index(datetime_col, inplace=True)
     dataframe = dataframe.tz_localize(None)
-    dataframe["value"] = pd.to_numeric(dataframe["value"])
+    dataframe[value_col] = pd.to_numeric(dataframe[value_col])
     return dataframe
 
 
@@ -482,8 +505,8 @@ def get_nwis(
     gap_fill: bool = False,
     resolve_masking: bool = False,
 ) -> NWISFrame:
-    """Retreives NWIS time-series data as a dataframe with extended methods and metadata properties.
-    referred to as an NWISFrame
+    """Retreives NWIS time-series data as a dataframe with
+    extended methods and metadata properties.
 
     Parameters
     ----------
@@ -503,17 +526,21 @@ def get_nwis(
     access : int | str, optional
         Access level.  0 - Public, 1 - Coop, 2 - Internal, by default 0
     gap_tol : str | None, optional
-        gap tolerance of time-series, "15min" = 15 minute gap tolerance, "D" = 24hr tolerance, by default None
+        gap tolerance of time-series,
+        "15min" = 15 minute gap tolerance,
+        "D" = 24hr tolerance, by default None
     gap_fill : bool, optional
         Set True to fill any gaps in time-series with np.NaN, by default False
     resolve_masking : bool, optional
-        Data with qualifiers such as "Ice" will mask data values with -999999 when access level is public.
+        Data with qualifiers such as "Ice" will mask data values
+        with -999999 when access level is public.
         Set True and -999999 will be converted to np.NaN values, by default False
 
     Returns
     -------
     NWISFrame
-        Acts just like a pandas DataFrame, but comes with extended methods and properties.
+        Acts just like a pandas DataFrame, but comes with
+        extended methods and properties.
 
     Notes
     -----
@@ -531,7 +558,12 @@ def get_nwis(
     )
     response = query_url(url)
     rdata = response.json()
-    dataframe = process_nwis_response(url, response, rdata)
+    dataframe = process_nwis_response(rdata)
+    if dataframe.empty is True:
+        print(
+            f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}"
+        )
+        raise SystemExit
 
     dataframe = NWISFrame(dataframe)
     dataframe._metadict = create_metadict(
@@ -579,5 +611,7 @@ if __name__ == "__main__":
     #     gap_tol="D",
     # )
     # data.gap_index()
-    gap_data.check_gaps("15min", start_date="2023-01-03 16:45:00", end_date="2023-01-03 17:00:00")
+    gap_data.check_gaps(
+        "15min", start_date="2023-01-03 16:45:00", end_date="2023-01-03 17:00:00"
+    )
     pause = 2
