@@ -184,9 +184,7 @@ class NWISFrame(pd.DataFrame):
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         if gap_tol == NWISFrame.Unknown:
-            warnings.warn(
-                f"\nNo gap tolerance specified for {self.STAID}.", stacklevel=2
-            )
+            warnings.warn(f"\nNo gap tolerance specified for {self.STAID}.", stacklevel=2)
             return NWISFrame.Unknown
         gap_index = self.gap_index(gap_tol).to_frame()
         if gap_index.index.empty:
@@ -246,11 +244,7 @@ class NWISFrame(pd.DataFrame):
         """
         gap_tol = self._resolve_gaptolerance(gap_tol)
         try:
-            self = (
-                self.reindex(pd.date_range(self.start_date, self.end_date, freq=gap_tol))
-                .rename_axis(["dateTime"])
-                .fillna(float("NaN"))
-            )
+            self = self.reindex(pd.date_range(self.start_date, self.end_date, freq=gap_tol)).rename_axis(["dateTime"]).fillna(float("NaN"))
             # self = self.asfreq(freq=gap_tol)
             self._metadict["_gap_tolerance"] = gap_tol
             # self["qualifiers"][self["qualifiers"].isnull()] = NWISFrame.Unknown
@@ -445,7 +439,8 @@ def process_nwis_response(
         record_path = ["value", "timeSeries", "values", "value"]
     dataframe = pd.json_normalize(rdata, record_path=record_path)
     dataframe[datetime_col] = pd.to_datetime(
-        dataframe[datetime_col].array, infer_datetime_format=True
+        dataframe[datetime_col].array,
+        infer_datetime_format=True,
     )
     dataframe.set_index(datetime_col, inplace=True)
     dataframe = dataframe.tz_localize(None)
@@ -560,9 +555,7 @@ def get_nwis(
     rdata = response.json()
     dataframe = process_nwis_response(rdata)
     if dataframe.empty is True:
-        print(
-            f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}"
-        )
+        print(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
         raise SystemExit
 
     dataframe = NWISFrame(dataframe)
@@ -612,6 +605,8 @@ if __name__ == "__main__":
     # )
     # data.gap_index()
     gap_data.check_gaps(
-        "15min", start_date="2023-01-03 16:45:00", end_date="2023-01-03 17:00:00"
+        "15min",
+        start_date="2023-01-03 16:45:00",
+        end_date="2023-01-03 17:00:00",
     )
     pause = 2
