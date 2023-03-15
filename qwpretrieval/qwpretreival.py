@@ -145,8 +145,8 @@ def _set_datetime_index(dataframe: pd.DataFrame) -> None:
     return None
 
 
-def getqwp(
-    siteid: str | int,
+def get_qwp(
+    staid: str | int,
     startDateLo: str,
     service: str,
     **kwargs,
@@ -158,7 +158,7 @@ def getqwp(
 
     Parameters
     ----------
-    siteid : str | int
+    staid : str | int
         Station ID
     startDateLo : str
         Date to begin data query in the format MM-DD-YYYY
@@ -174,6 +174,10 @@ def getqwp(
         "biological metric"
         "project weighting"
 
+    **kwargs :  Optional keyword arguments
+        Useful arguments:
+            startDateHi : str
+                Date to end data query in the format MM-DD-YYYY
     Returns
     -------
     pd.DataFrame
@@ -191,7 +195,7 @@ def getqwp(
     and thus do not follow classic "pythonic" conventions.
     """
     url = _construct_url(
-        siteid=siteid,
+        siteid=staid,
         startDateLo=startDateLo,
         service=service,
         **kwargs,
@@ -199,7 +203,7 @@ def getqwp(
     # USGS has leading '0's in pCodes. Treat them as strings to avoid dropping them.
     dataframe = pd.read_csv(url, dtype={"USGSPCode": str})
     if dataframe.empty is True:
-        warnings.warn(f"\nNo data for station {siteid} at:\n{url}", stacklevel=2)
+        warnings.warn(f"\nNo data for station {staid} at:\n{url}", stacklevel=2)
     # Combine date and time columns and form dateTime index.
     _set_datetime_index(dataframe)
     #  QWP attaches an agency identifier to the siteid. Remove that identifier.
@@ -233,8 +237,8 @@ def getqwp(
 
 
 if __name__ == "__main__":
-    data = getqwp(
-        siteid="433615110440001",
+    data = get_qwp(
+        staid="433615110440001",
         startDateLo="01-01-2020",
         startDateHi="01-01-2023",
         service="results",
