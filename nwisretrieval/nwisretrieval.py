@@ -558,9 +558,9 @@ def get_nwis(
         print(f"Critical error!  Response status code: {response.status_code}\n No data found at: {url}")
         raise SystemExit
 
-    dataframe = NWISFrame(dataframe)
-    dataframe._metadict = create_metadict(
-        dataframe=dataframe,
+    nwisframe = NWISFrame(dataframe)
+    nwisframe._metadict = create_metadict(
+        dataframe=nwisframe,
         STAID=STAID,
         start_date=start_date,
         end_date=end_date,
@@ -576,13 +576,13 @@ def get_nwis(
     )
 
     if gap_fill and bool(gap_tol):
-        dataframe = dataframe.fill_gaps(gap_tol)
+        nwisframe = nwisframe.fill_gaps(gap_tol)
     if resolve_masking:
-        dataframe.resolve_masks()
-    dataframe.check_quals()
-    dataframe.check_approval()
-    dataframe.check_gaps(gap_tol=gap_tol)
-    return dataframe
+        nwisframe.resolve_masks()
+    nwisframe.check_quals()
+    nwisframe.check_approval()
+    nwisframe.check_gaps(gap_tol=gap_tol)
+    return nwisframe
 
 
 if __name__ == "__main__":
