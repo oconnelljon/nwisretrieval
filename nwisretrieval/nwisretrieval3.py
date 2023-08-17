@@ -154,10 +154,10 @@ class NWISFrame:
         """
         mask = ~self._obj["qualifiers"].isnull()
         unique_quals = list(pd.unique(self._obj["qualifiers"][mask].apply(frozenset)))
-        for qual in unique_quals:
-            if "Ice" in qual or "i" in qual:
-                return "Ice"
-        return Unknown
+        return next(
+            ("Ice" for qual in unique_quals if "Ice" in qual or "i" in qual),
+            Unknown,
+        )
 
     def check_gaps(
         self,
@@ -397,16 +397,26 @@ def create_metadict(
         }
     )
     if rdata:
-        metadict.update(
-            {
-                "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"] or Unknown,
-                "_coords": (
-                    rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"] or Unknown,
-                    rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"] or Unknown,
-                ),
-                "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"] or Unknown,
-            }
-        )
+        metadict |= {
+            "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"][
+                "siteName"
+            ]
+            or Unknown,
+            "_coords": (
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"][
+                    "geogLocation"
+                ]["latitude"]
+                or Unknown,
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"][
+                    "geogLocation"
+                ]["longitude"]
+                or Unknown,
+            ),
+            "_var_description": rdata["value"]["timeSeries"][0]["variable"][
+                "variableDescription"
+            ]
+            or Unknown,
+        }
     return metadict
 
 

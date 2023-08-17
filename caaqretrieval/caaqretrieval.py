@@ -141,10 +141,10 @@ class CAAQFrame(pd.DataFrame):
         """
         mask = ~self["qualifiers"].isnull()
         unique_quals = list(pd.unique(self["qualifiers"][mask].apply(frozenset)))
-        for qual in unique_quals:
-            if "Ice" in qual or "i" in qual:
-                return "Ice"
-        return self.Unknown
+        return next(
+            ("Ice" for qual in unique_quals if "Ice" in qual or "i" in qual),
+            self.Unknown,
+        )
 
     def check_gaps(
         self,
@@ -378,16 +378,26 @@ def create_metadict(
         }
     )
     if rdata:
-        metadict.update(
-            {
-                "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"]["siteName"] or CAAQFrame.Unknown,
-                "_coords": (
-                    rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["latitude"] or CAAQFrame.Unknown,
-                    rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"]["geogLocation"]["longitude"] or CAAQFrame.Unknown,
-                ),
-                "_var_description": rdata["value"]["timeSeries"][0]["variable"]["variableDescription"] or CAAQFrame.Unknown,
-            }
-        )
+        metadict |= {
+            "_site_name": rdata["value"]["timeSeries"][0]["sourceInfo"][
+                "siteName"
+            ]
+            or CAAQFrame.Unknown,
+            "_coords": (
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"][
+                    "geogLocation"
+                ]["latitude"]
+                or CAAQFrame.Unknown,
+                rdata["value"]["timeSeries"][0]["sourceInfo"]["geoLocation"][
+                    "geogLocation"
+                ]["longitude"]
+                or CAAQFrame.Unknown,
+            ),
+            "_var_description": rdata["value"]["timeSeries"][0]["variable"][
+                "variableDescription"
+            ]
+            or CAAQFrame.Unknown,
+        }
     return metadict
 
 #  Add json normalize path parameter and datetime and value arguments and this could work for CA souris data.

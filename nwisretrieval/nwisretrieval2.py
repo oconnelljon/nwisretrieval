@@ -53,10 +53,10 @@ class NWISFrame:
     @property
     def qualifier(self) -> str:
         unique_quals = list(pd.unique(self._obj["qualifiers"].apply(frozenset)))
-        for qual in unique_quals:
-            if "Ice" in qual or "i" in qual:
-                return "Ice"
-        return "None"
+        return next(
+            ("Ice" for qual in unique_quals if "Ice" in qual or "i" in qual),
+            "None",
+        )
 
     def check_gaps(
         self,
