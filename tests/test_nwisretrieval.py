@@ -6,7 +6,7 @@ import pandas.testing as pd_testing
 import pytest
 from rich import print
 
-import nwisretrieval.nwisretrieval4 as nwis
+import nwisretrieval.register as nwis
 
 
 @pytest.fixture
@@ -323,3 +323,6 @@ def test_var_description(dummy_station_ice_provisional_1Day_gap):
 
 def test_gap_tolerance(dummy_station_ice_provisional_1Day_gap):
     assert str(dummy_station_ice_provisional_1Day_gap._metadict.get("_gap_tolerance")) == dummy_station_ice_provisional_1Day_gap.gap_tolerance
+
+def test_nwisframe_getnwis():
+    data = nwis.NWISFrame.get_nwis()
