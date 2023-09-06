@@ -25,7 +25,6 @@ class NWISFrame:
         self.json_data = json_data
         self._metadict = {}
 
-
     @property
     def query_parameters(self):
         url = self.json_data.url
@@ -129,10 +128,51 @@ class NWISFrame:
             for item in json_input:
                 yield from item_generator(item, lookup_key)
 
+    @staticmethod
+    def _validate_kwargs(**kwargs) -> dict:
+        """Remove kwargs passed as query parameters with None as a value
+
+        Returns
+        -------
+        dict
+            kwargs with valid query parameter values.
+        """
+        return {query_param: value for query_param, value in kwargs.items() if value is not None}
+
     @classmethod
-    def get_nwis(cls, **kwargs) -> pd.DataFrame:
+    def get_nwis(
+        cls,
+        format: str | None = None,
+        sites: str | None = None,
+        startDT: str | None = None,
+        endDT: str | None = None,
+        parameterCd: str | None = None,
+        siteStatus: str | None = None,
+        access: str | None = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Get time series data from NWIS DV or IV service
+
+        Parameters
+        ----------
+        Valid kwargs:
+            "format"
+            "parameterCd"
+            "startDT"
+            "endDT"
+            "sites"
+            "siteStatus"
+            "access"
+
+        Returns
+        -------
+        pd.DataFrame
+            Time-series data in the form of a pandas DataFrame
+        """
+        kwargs = cls._validate_kwargs(**kwargs)
         service = kwargs.pop("service")
         url = cls._base_urls[service]
+
         response = requests.get(url=url, params=kwargs)
         rdata = response.json()
         dataframe = cls.process_nwis_response(rdata)
