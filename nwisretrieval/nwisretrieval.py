@@ -1,7 +1,13 @@
+from __future__ import annotations
 import pandas as pd
 import requests
 import sentinel
 from requests.models import Response
+
+
+def get_requests_data(url, params):
+    response = requests.get(url=url, params=params)
+    return response.json()
 
 
 class NWISFrame:
@@ -34,19 +40,19 @@ class NWISFrame:
 
     @property
     def url(self):
-        return list(NWISFrame.item_generator(self.json_data, "queryURL"))[0]
+        return next(NWISFrame.item_generator(self.json_data, "queryURL"))
 
     @property
     def status_code(self):
-        return self.json_data.status_code
+        return next(NWISFrame.item_generator(self.json_data, "queryURL"))
+
+    @property
+    def site_name(self):
+        return next(NWISFrame.item_generator(self.json_data, "siteName"))
 
     @property
     def approval(self):
         return self.check_approval()
-
-    # @property
-    # def site_name(self):
-    #     return self.response.value.timeSeries[0].sourceInfo.siteName
 
     # def create_metadict(rdata):
     #     metadict = dict(
@@ -70,7 +76,7 @@ class NWISFrame:
     def process_nwis_response(
         rdata: str,
         record_path: list | None = None,
-        # datetime_col: str = "dateTime",
+        datetime_col: str = "dateTime",
     ) -> pd.DataFrame:
         """Process JSON data from NWIS to pd.DataFrame
         Defaults are set for NWIS queries.
@@ -82,7 +88,7 @@ class NWISFrame:
         record_path : list | None, optional
             List of json keys to traverse to normalize values to DataFrame.
             By default ["value", "timeSeries", "values", "value"]
-        datetime_col : DEPRECATED - str, optional
+        datetime_col : str, optional
             Column containing datetime values to convert to DateTimeIndex.
             By default "dateTime"
 
@@ -104,79 +110,103 @@ class NWISFrame:
             rdata,
             record_path=record_path,
         )
-        dataframe["dateTime"] = pd.to_datetime(
-            dataframe["dateTime"].array,
+
+        dataframe[datetime_col] = pd.to_datetime(
+            dataframe[datetime_col].array,
             infer_datetime_format=True,
         )
+
         dataframe.set_index(
-            "dateTime",
+            datetime_col,
             inplace=True,
         )
+
         dataframe = dataframe.tz_localize(None)
         dataframe["value"] = pd.to_numeric(dataframe["value"])
         return dataframe
 
     @staticmethod
-    def item_generator(json_input, lookup_key):
-        if isinstance(json_input, dict):
-            for k, v in json_input.items():
-                if k == lookup_key:
+    def item_generator(data, key):
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if k == key:
                     yield v
                 else:
-                    yield from item_generator(v, lookup_key)
-        elif isinstance(json_input, list):
-            for item in json_input:
-                yield from item_generator(item, lookup_key)
+                    yield from NWISFrame.item_generator(v, key)
+        elif isinstance(data, list):
+            for item in data:
+                yield from NWISFrame.item_generator(item, key)
 
     @staticmethod
-    def _validate_kwargs(**kwargs) -> dict:
-        """Remove kwargs passed as query parameters with None as a value
+    def _remove_nones(**kwargs) -> dict:
+        """Remove kwargs with None as a value.
 
         Returns
         -------
         dict
-            kwargs with valid query parameter values.
+            kwargs with values that are not None.
+
+        Notes
+        -----
+        This function will not remove invalid NWIS query parameter names
+        or values.  The duty of submitting valid query parameter, value
+        combinations falls on the user.
         """
         return {query_param: value for query_param, value in kwargs.items() if value is not None}
 
     @classmethod
     def get_nwis(
         cls,
-        format: str | None = None,
-        sites: str | None = None,
-        startDT: str | None = None,
-        endDT: str | None = None,
-        parameterCd: str | None = None,
-        siteStatus: str | None = None,
-        access: str | None = None,
+        service: str,
+        # format: str | None = None,
+        # sites: str | None = None,
+        # startDT: str | None = None,
+        # endDT: str | None = None,
+        # parameterCd: str | None = None,
+        # siteStatus: str | None = None,
+        # access: str | None = None,
         **kwargs,
     ) -> pd.DataFrame:
         """Get time series data from NWIS DV or IV service
 
         Parameters
         ----------
-        Valid kwargs:
-            "format"
-            "parameterCd"
-            "startDT"
-            "endDT"
-            "sites"
-            "siteStatus"
-            "access"
+        Common kwargs:
+            format = json
+            parameterCd = 00060 # discharge
+            startDT =
+            endDT =
+            sites =
+            siteStatus =
+            access =
 
         Returns
         -------
         pd.DataFrame
             Time-series data in the form of a pandas DataFrame
         """
-        kwargs = cls._validate_kwargs(**kwargs)
-        service = kwargs.pop("service")
         url = cls._base_urls[service]
 
-        response = requests.get(url=url, params=kwargs)
-        rdata = response.json()
-        dataframe = cls.process_nwis_response(rdata)
-        return NWISFrame(dataframe, rdata)
+        json_data = cls.get_requests_data(url=url, params=kwargs)
+        dataframe = cls.process_nwis_response(json_data)
+        # TODO function to pull json_data into metadictionary
+
+        return NWISFrame(dataframe, json_data)
+
+    @classmethod
+    def _merge_kwargs(cls, format, sites, startDT, endDT, parameterCd, siteStatus, access, kwargs):
+        defaults = {
+            "format": format,
+            "sites": sites,
+            "startDT": startDT,
+            "endDT": endDT,
+            "parameterCd": parameterCd,
+            "siteStatus": siteStatus,
+            "access": access,
+        }
+        kwargs = kwargs.update(defaults)
+        kwargs = cls._remove_nones(**kwargs)
+        return kwargs
 
     def check_approval(self) -> str:
         """Checks approval level of data.
