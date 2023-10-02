@@ -342,6 +342,22 @@ traitlets = ">=5.3"
 test = ["pytest"]
 
 [[package]]
+name = "dataclass-wizard"
+version = "0.22.2"
+description = "Marshal dataclasses to/from JSON. Use field properties with initial values. Construct a dataclass schema with JSON input."
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "dataclass-wizard-0.22.2.tar.gz", hash = "sha256:211f842e5e9a8ace50ba891ef428cd78c82579fb98024f80f3e630ca8d1946f6"},
+    {file = "dataclass_wizard-0.22.2-py2.py3-none-any.whl", hash = "sha256:49be36ecc64bc5a1e9a35a6bad1d71d33b6b9b06877404931a17c6a3a6dfbb10"},
+]
+
+[package.extras]
+timedelta = ["pytimeparse (>=1.1.7)"]
+yaml = ["PyYAML (>=5.3)"]
+
+[[package]]
 name = "debugpy"
 version = "1.6.6"
 description = "An implementation of the Debug Adapter Protocol for Python"
@@ -1259,4 +1275,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "0351811052e7325b7b39d2c11d9c6d89f6f418a8707ddf880353645fd8038cd3"
+content-hash = "6209daeda0a5d5cc0eaeac00ecca056e9ebcab1bc14b00d13ed00f3ee625410f"
