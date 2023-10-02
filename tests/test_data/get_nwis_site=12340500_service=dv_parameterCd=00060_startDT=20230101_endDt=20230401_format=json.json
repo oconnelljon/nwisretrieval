@@ -1,0 +1,386 @@
+{
+    "name": "ns1:timeSeriesResponseType",
+    "declaredType": "org.cuahsi.waterml.TimeSeriesResponseType",
+    "scope": "javax.xml.bind.JAXBElement$GlobalScope",
+    "value": {
+        "queryInfo": {
+            "queryURL": "http://nwis.waterservices.usgs.gov/nwis/dv/format=json&sites=12323233&startDT=2022-07-01&endDT=2022-08-01&statCd=00003&parameterCd=00060",
+            "criteria": {
+                "locationParam": "[ALL:12323233]",
+                "variableParam": "[00060]",
+                "timeParam": {
+                    "beginDateTime": "2022-07-01T00:00:00.000",
+                    "endDateTime": "2022-08-01T00:00:00.000"
+                },
+                "parameter": []
+            },
+            "note": [
+                {
+                    "value": "[ALL:12323233]",
+                    "title": "filter:sites"
+                },
+                {
+                    "value": "[mode=RANGE, modifiedSince=null] interval={INTERVAL[2022-07-01T00:00:00.000-04:00/2022-08-01T00:00:00.000-04:00]}",
+                    "title": "filter:timeRange"
+                },
+                {
+                    "value": "methodIds=[ALL]",
+                    "title": "filter:methodId"
+                },
+                {
+                    "value": "2023-09-10T15:00:24.896Z",
+                    "title": "requestDT"
+                },
+                {
+                    "value": "c57784f0-4fea-11ee-9236-4cd98f86fad9",
+                    "title": "requestId"
+                },
+                {
+                    "value": "Provisional data are subject to revision. Go to http://waterdata.usgs.gov/nwis/help/?provisional for more information.",
+                    "title": "disclaimer"
+                },
+                {
+                    "value": "nadww02",
+                    "title": "server"
+                }
+            ]
+        },
+        "timeSeries": [
+            {
+                "sourceInfo": {
+                    "siteName": "Blacktail Creek above Grove Gulch, at Butte, MT",
+                    "siteCode": [
+                        {
+                            "value": "12323233",
+                            "network": "NWIS",
+                            "agencyCode": "USGS"
+                        }
+                    ],
+                    "timeZoneInfo": {
+                        "defaultTimeZone": {
+                            "zoneOffset": "-07:00",
+                            "zoneAbbreviation": "MST"
+                        },
+                        "daylightSavingsTimeZone": {
+                            "zoneOffset": "-06:00",
+                            "zoneAbbreviation": "MDT"
+                        },
+                        "siteUsesDaylightSavingsTime": true
+                    },
+                    "geoLocation": {
+                        "geogLocation": {
+                            "srs": "EPSG:4326",
+                            "latitude": 45.9912694,
+                            "longitude": -112.5273583
+                        },
+                        "localSiteXY": []
+                    },
+                    "note": [],
+                    "siteType": [],
+                    "siteProperty": [
+                        {
+                            "value": "ST",
+                            "name": "siteTypeCd"
+                        },
+                        {
+                            "value": "17010201",
+                            "name": "hucCd"
+                        },
+                        {
+                            "value": "30",
+                            "name": "stateCd"
+                        },
+                        {
+                            "value": "30093",
+                            "name": "countyCd"
+                        }
+                    ]
+                },
+                "variable": {
+                    "variableCode": [
+                        {
+                            "value": "00060",
+                            "network": "NWIS",
+                            "vocabulary": "NWIS:UnitValues",
+                            "variableID": 45807197,
+                            "default": true
+                        }
+                    ],
+                    "variableName": "Streamflow, ft&#179;/s",
+                    "variableDescription": "Discharge, cubic feet per second",
+                    "valueType": "Derived Value",
+                    "unit": {
+                        "unitCode": "ft3/s"
+                    },
+                    "options": {
+                        "option": [
+                            {
+                                "value": "Mean",
+                                "name": "Statistic",
+                                "optionCode": "00003"
+                            }
+                        ]
+                    },
+                    "note": [],
+                    "noDataValue": -999999.0,
+                    "variableProperty": [],
+                    "oid": "45807197"
+                },
+                "values": [
+                    {
+                        "value": [
+                            {
+                                "value": "4.77",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-01T00:00:00.000"
+                            },
+                            {
+                                "value": "4.50",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-02T00:00:00.000"
+                            },
+                            {
+                                "value": "11.5",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-03T00:00:00.000"
+                            },
+                            {
+                                "value": "8.55",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-04T00:00:00.000"
+                            },
+                            {
+                                "value": "8.68",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-05T00:00:00.000"
+                            },
+                            {
+                                "value": "7.60",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-06T00:00:00.000"
+                            },
+                            {
+                                "value": "8.82",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-07T00:00:00.000"
+                            },
+                            {
+                                "value": "7.62",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-08T00:00:00.000"
+                            },
+                            {
+                                "value": "7.64",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-09T00:00:00.000"
+                            },
+                            {
+                                "value": "7.05",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-10T00:00:00.000"
+                            },
+                            {
+                                "value": "6.13",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-11T00:00:00.000"
+                            },
+                            {
+                                "value": "4.88",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-12T00:00:00.000"
+                            },
+                            {
+                                "value": "5.17",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-13T00:00:00.000"
+                            },
+                            {
+                                "value": "5.10",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-14T00:00:00.000"
+                            },
+                            {
+                                "value": "5.16",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-15T00:00:00.000"
+                            },
+                            {
+                                "value": "4.84",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-16T00:00:00.000"
+                            },
+                            {
+                                "value": "3.90",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-17T00:00:00.000"
+                            },
+                            {
+                                "value": "3.34",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-18T00:00:00.000"
+                            },
+                            {
+                                "value": "2.92",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-19T00:00:00.000"
+                            },
+                            {
+                                "value": "2.73",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-20T00:00:00.000"
+                            },
+                            {
+                                "value": "2.49",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-21T00:00:00.000"
+                            },
+                            {
+                                "value": "2.32",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-22T00:00:00.000"
+                            },
+                            {
+                                "value": "2.16",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-23T00:00:00.000"
+                            },
+                            {
+                                "value": "2.66",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-24T00:00:00.000"
+                            },
+                            {
+                                "value": "2.43",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-25T00:00:00.000"
+                            },
+                            {
+                                "value": "3.15",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-26T00:00:00.000"
+                            },
+                            {
+                                "value": "2.00",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-27T00:00:00.000"
+                            },
+                            {
+                                "value": "2.34",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-28T00:00:00.000"
+                            },
+                            {
+                                "value": "2.09",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-29T00:00:00.000"
+                            },
+                            {
+                                "value": "2.28",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-30T00:00:00.000"
+                            },
+                            {
+                                "value": "1.76",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-07-31T00:00:00.000"
+                            },
+                            {
+                                "value": "1.70",
+                                "qualifiers": [
+                                    "A"
+                                ],
+                                "dateTime": "2022-08-01T00:00:00.000"
+                            }
+                        ],
+                        "qualifier": [
+                            {
+                                "qualifierCode": "A",
+                                "qualifierDescription": "Approved for publication -- Processing and review completed.",
+                                "qualifierID": 0,
+                                "network": "NWIS",
+                                "vocabulary": "uv_rmk_cd"
+                            }
+                        ],
+                        "qualityControlLevel": [],
+                        "method": [
+                            {
+                                "methodDescription": "",
+                                "methodID": 326127
+                            }
+                        ],
+                        "source": [],
+                        "offset": [],
+                        "sample": [],
+                        "censorCode": []
+                    }
+                ],
+                "name": "USGS:12323233:00060:00003"
+            }
+        ]
+    },
+    "nil": false,
+    "globalScope": true,
+    "typeSubstituted": false
+}
