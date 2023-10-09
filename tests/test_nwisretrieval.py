@@ -5,13 +5,10 @@ import numpy as np
 import pandas as pd
 import pandas.testing as pd_testing
 import pytest
-from dataclass_wizard import JSONWizard
 from rich import print
 
-import nwisretrieval.nwis as nwis
-
-# from unittest.mock import patch
-# from nwisretrieval.nwisretrieval import NWISJson
+from dataclass_wizard import fromdict
+from nwisretrieval.nwis import NWISjson, NWISFrame
 
 
 @pytest.fixture
@@ -44,34 +41,6 @@ def dummy_station_ice_provisional_15min_nogap():  # approval_flag: str, qualifie
     dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
     dataframe.set_index("dateTime", inplace=True)
 
-    metadata = {
-        "_STAID": "12301933",
-        "_start_date": "2023-01-03",
-        "_end_date": "2023-01-03",
-        "_parame": "00060",
-        "_stat_code": "stat_code",
-        "_service": "service",
-        "_access_level": "0",
-        "_url": "url",
-        "_gap_tolerance": "15min",
-        "_gap_fill": False,
-        "_resolve_masking": False,
-        "_gap_flag": "unknown",
-        "_approval": "Provisional",
-        "_mask_flag": "unknown",
-        "_site_name": "Libby Dam dummy site",
-        "_coords": (
-            "1234",
-            "1234",
-        ),
-        "_var_description": "Var description",
-    }
-
-    # Wrap pandas dataframe with custom NWISFrame class and assign metadata to _metadict.
-    dataframe = nwis.NWISFrame(dataframe)
-    dataframe._metadict = metadata
-    return dataframe
-
 
 @pytest.fixture
 def dummy_station_ice_provisional_1Day_gap():  # approval_flag: str, qualifier_flag: str
@@ -85,34 +54,6 @@ def dummy_station_ice_provisional_1Day_gap():  # approval_flag: str, qualifier_f
     )
     dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
     dataframe.set_index("dateTime", inplace=True)
-
-    metadata = {
-        "_STAID": "12301933",
-        "_start_date": "2023-01-03",
-        "_end_date": "2023-01-06",
-        "_parame": "00060",
-        "_stat_code": "stat_code",
-        "_service": "service",
-        "_access_level": "0",
-        "_url": "url",
-        "_gap_tolerance": "D",
-        "_gap_fill": False,
-        "_resolve_masking": False,
-        "_gap_flag": "unknown",
-        "_approval": "Provisional",
-        "_mask_flag": "unknown",
-        "_site_name": "Libby Dam dummy site",
-        "_coords": (
-            "1234",
-            "1234",
-        ),
-        "_var_description": "Var description",
-    }
-
-    # Wrap pandas dataframe with custom NWISFrame class and assign metadata to _metadict.
-    dataframe = nwis.NWISFrame(dataframe)
-    dataframe._metadict = metadata
-    return dataframe
 
 
 @pytest.fixture
@@ -128,34 +69,6 @@ def dummy_station_ice_provisional_1Day_nogap():  # approval_flag: str, qualifier
     dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
     dataframe.set_index("dateTime", inplace=True)
 
-    metadata = {
-        "_STAID": "12301933",
-        "_start_date": "2023-01-03",
-        "_end_date": "2023-01-06",
-        "_parame": "00060",
-        "_stat_code": "stat_code",
-        "_service": "service",
-        "_access_level": "0",
-        "_url": "url",
-        "_gap_tolerance": "D",
-        "_gap_fill": False,
-        "_resolve_masking": False,
-        "_gap_flag": False,
-        "_approval": "Provisional",
-        "_mask_flag": "unknown",
-        "_site_name": "Libby Dam dummy site",
-        "_coords": (
-            "1234",
-            "1234",
-        ),
-        "_var_description": "Var description",
-    }
-
-    # Wrap pandas dataframe with custom NWISFrame class and assign metadata to _metadict.
-    dataframe = nwis.NWISFrame(dataframe)
-    dataframe._metadict = metadata
-    return dataframe
-
 
 @pytest.fixture
 def dummy_station_ice_approved_1Day_nogap():  # approval_flag: str, qualifier_flag: str
@@ -169,34 +82,6 @@ def dummy_station_ice_approved_1Day_nogap():  # approval_flag: str, qualifier_fl
     )
     dataframe["dateTime"] = pd.to_datetime(dataframe["dateTime"].array, infer_datetime_format=True)
     dataframe.set_index("dateTime", inplace=True)
-
-    metadata = {
-        "_STAID": "12301933",
-        "_start_date": "2023-01-03",
-        "_end_date": "2023-01-06",
-        "_parame": "00060",
-        "_stat_code": "stat_code",
-        "_service": "service",
-        "_access_level": "0",
-        "_url": "url",
-        "_gap_tolerance": "D",
-        "_gap_fill": False,
-        "_resolve_masking": False,
-        "_gap_flag": False,
-        "_approval": "Provisional",
-        "_mask_flag": "unknown",
-        "_site_name": "Libby Dam dummy site",
-        "_coords": (
-            "1234",
-            "1234",
-        ),
-        "_var_description": "Var description",
-    }
-
-    # Wrap pandas dataframe with custom NWISFrame class and assign metadata to _metadict.
-    dataframe = nwis.NWISFrame(dataframe)
-    dataframe._metadict = metadata
-    return dataframe
 
 
 @pytest.fixture
@@ -286,12 +171,6 @@ def test_fill_gaps(dummy_station_ice_provisional_1Day_gap):
 
 def test_check_quals(dummy_station_ice_provisional_1Day_gap):
     assert dummy_station_ice_provisional_1Day_gap.qualifier == "Ice"
-
-
-# def test_property_gap_flag(dummy_station_ice_provisional_1Day_gap):
-#     assert dummy_station_ice_provisional_1Day_gap.gap_flag is True
-#     dummy_station_ice_provisional_1Day_gap = dummy_station_ice_provisional_1Day_gap.fill_gaps()
-#     assert dummy_station_ice_provisional_1Day_gap.gap_flag is False
 
 
 def test_check_gaps(
@@ -385,62 +264,6 @@ def test_gap_tolerance(dummy_station_ice_provisional_1Day_gap):
     )
 
 
-def test_nwisframe_validate_kwargs():
-    input_regular_call = dict(
-        sites="12340500",
-        parameterCd="00060",
-        startDT="2023-01-01",
-        endDT="2023-04-01",
-        format="json",
-    )
-    expected_regular_call = dict(
-        sites="12340500",
-        parameterCd="00060",
-        startDT="2023-01-01",
-        endDT="2023-04-01",
-        format="json",
-    )
-    input_none_in_query = dict(
-        sites="12340500",
-        startDT="2023-01-01",
-        parameterCd=None,
-        endDT=None,
-    )
-    expected_none_in_query = dict(
-        sites="12340500",
-        startDT="2023-01-01",
-    )
-    input_none_and_bad_parameters_in_query = dict(
-        sites="12340500",
-        format="json",
-        mouse="2023-01-01",
-        parameterCd=None,
-        house=None,
-    )
-    expected_none_and_bad_parameters_in_query = dict(
-        sites="12340500",
-        format="json",
-        mouse="2023-01-01",
-    )
-    input_only_none_values = dict(
-        sites=None,
-        startDT=None,
-        mouse=None,
-    )
-    expected_only_none_values = {}
-
-    output_only_none_values = nwis.NWISFrame._remove_nones(**input_only_none_values)
-    output_data_regular_call = nwis.NWISFrame._remove_nones(**input_regular_call)
-    output_data_none_in_query = nwis.NWISFrame._remove_nones(**input_none_in_query)
-    output_data_none_and_bad_parameters_in_query = nwis.NWISFrame._remove_nones(
-        **input_none_and_bad_parameters_in_query
-    )
-    assert expected_regular_call == output_data_regular_call
-    assert expected_none_in_query == output_data_none_in_query
-    assert expected_none_and_bad_parameters_in_query == output_data_none_and_bad_parameters_in_query
-    assert expected_only_none_values == output_only_none_values
-
-
 def test_nwisframe_getnwis():
     data = nwis.NWISFrame.get_nwis(
         sites="12340500",
@@ -453,128 +276,10 @@ def test_nwisframe_getnwis():
     return
 
 
-def test_nwisframe__merge_kwargs():
-    input_norm = {
-        "format": "json",
-        "sites": "12323233",
-        "startDT": "2022-07-01",
-        "endDT": "2022-08-01",
-        "statCd": "00003",
-        "parameterCd": "00060",
-        "service": "dv",
-    }
-    input_data_normal = {
-        "format": "json",
-        "sites": "12340500",
-        "startDT": "2022-01-01",
-        "endDT": "2022-05-01",
-        "statCd": "00003",
-        "parameterCd": "00060",
-        "service": "dv",
-    }
-    expected_data_normal = {
-        "format": "json",
-        "sites": "12340500",
-        "startDT": "2022-01-01",
-        "endDT": "2022-05-1",
-        "statCd": "00003",
-        "parameterCd": "00060",
-        "service": "dv",
-    }
-    output_data_normal = nwis.NWISFrame._merge_kwargs(input_data_normal)
-    assert expected_data_normal == output_data_normal
-
-
-def test_nwis_item_generator(requests_json_return_data):
-    output_queryURL = next(
-        nwis.NWISFrame.item_generator(data=requests_json_return_data, key="queryURL")
-    )
-    output_siteName = next(
-        nwis.NWISFrame.item_generator(data=requests_json_return_data, key="siteName")
-    )
-    assert (
-        output_queryURL
-        == "http://nwis.waterservices.usgs.gov/nwis/dv/format=json&sites=12323233&startDT=2022-07-01&endDT=2022-08-01&statCd=00003&parameterCd=00060"
-    )
-    assert output_siteName == "Blacktail Creek above Grove Gulch, at Butte, MT"
-
-
-# def test_get_nwis(mocker):
-#     mocker.patch("nwis.get_requests_data", return_value=)
-
-
-def test_experiment():
-    string = """
-    {
-      "my_str": 20,
-      "ListOFINT": ["1", "2", 3],
-      "isActiveTupleee": ["true", false, 1]
-    }
-    """
-    string2 = """
-    {
-      "my_str": 20,
-      "ListOFINT": ["1", "2", {"alpha": "bravo"}],
-      "isActiveTupleee": ["true", false, 1]
-    }
-    """
-
-    from dataclasses import dataclass, field
-    from dataclass_wizard import JSONWizard, fromdict, LoadMeta
-    from typing import Dict
-
-    # @dataclass
-    # class NWISJasn(JSONWizard):
-    #     my_str: str | None
-    #     is_active_tupleee: tuple[bool, ...]
-    #     list_of_int: list[int] = field(default_factory=list)
-
-    @dataclass
-    class QueryInfo:
-        query_info: dict
-        # query_url: str
-        # criteria: dict[str, str, str, str]
-        # note: list
-
-    @dataclass
-    class TimeSeries:
-        TimeSeries: list
-
-    # instance1 = NWISJasn.from_json(string2)
-    from typing import List
-
-    @dataclass
-    class NWISHelper:
-        a: str
-
-    @dataclass
-    class NWISjson:
-        name: str
-        declaredType: List["NWISHelper"]
-        scope: str
-        value: str
-        nil: str
-        globalScope: str
-        typeSubstituted: str
-
-    LoadMeta(key_transform="CAMEL").bind_to(NWISjson)
-    with open(
-        "tests/test_data/get_nwis_site=12340500_service=dv_parameterCd=00060_startDT=20230101_endDt=20230401_format=json.json",
-        "r",
-        encoding="utf-8",
-    ) as f:
-        jdata = json.load(f)
-        mouse = {
-            "name": "str",
-            "declaredType": {"a": "b"},
-            "scope": "str",
-            "value": "Dict",
-            "nil": "bool",
-            "globalScope": "bool",
-            "typeSubstituted": "bool",
-        }
-        data = fromdict(cls=NWISjson, d=mouse)
-    return
+def test_experiment(requests_json_return_data):
+    ts_data, meta = NWISFrame.process_nwis_response(requests_json_return_data)
+    data = NWISFrame(ts_data, meta)
+    pause = 2
 
 
 if __name__ == "__main__":
