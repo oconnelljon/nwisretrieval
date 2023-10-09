@@ -3,11 +3,13 @@ import pandas as pd
 import requests
 import sentinel
 from requests.models import Response
+from dataclass_wizard import JSONWizard, fromlist, fromdict
+from dataclasses import dataclass
+from nwisretrieval.schema_nwis_ts import NWISjson
 
 
 def get_requests_data(url, params):
-    response = requests.get(url=url, params=params)
-    return response.json()
+    return requests.get(url=url, params=params).json()
 
 
 class NWISFrame:
@@ -26,55 +28,28 @@ class NWISFrame:
         "access",
     )
 
-    def __init__(self, data, json_data):
+    def __init__(self, data, meta):
         self.ts = data
-        self.json_data = json_data
-        self._metadict = {}
+        self.meta = meta
 
     @property
     def query_parameters(self):
-        url = self.json_data.url
+        url = self.url
         params = url.split("?")[1].split("&")
         split_params = [key_val.split("=") for key_val in params]
         return {key_val[0]: key_val[1] for key_val in split_params}
 
     @property
     def url(self):
-        return next(NWISFrame.item_generator(self.json_data, "queryURL"))
-
-    @property
-    def status_code(self):
-        return next(NWISFrame.item_generator(self.json_data, "queryURL"))
+        return self.meta.value.query_info.query_url
 
     @property
     def site_name(self):
-        return next(NWISFrame.item_generator(self.json_data, "siteName"))
-
-    @property
-    def approval(self):
-        return self.check_approval()
-
-    # def create_metadict(rdata):
-    #     metadict = dict(
-    #         {
-    #             "_STAID": kwargs.get("STAID", NWISFrame.Unknown),
-    #             "_start_date": kwargs.get("start_date", NWISFrame.Unknown),
-    #             "_end_date": kwargs.get("end_date", NWISFrame.Unknown),
-    #             "_param": kwargs.get("param", NWISFrame.Unknown),
-    #             "_stat_code": kwargs.get("stat_code", NWISFrame.Unknown),
-    #             "_service": kwargs.get("service", NWISFrame.Unknown),
-    #             "_access_level": kwargs.get("access", NWISFrame.Unknown),
-    #             "_url": kwargs.get("url", NWISFrame.Unknown),
-    #             "_gap_tolerance": kwargs.get("gap_tol", NWISFrame.Unknown),
-    #             "_gap_fill": kwargs.get("gap_fill", NWISFrame.Unknown),
-    #             "_resolve_masking": kwargs.get("resolve_masking", NWISFrame.Unknown),
-    #             "_approval": kwargs.get("_approval", NWISFrame.Unknown),
-    #         }
-    #     )
+        return self.meta.value.time_series[0].source_info.site_name
 
     @staticmethod
     def process_nwis_response(
-        rdata: str,
+        jdata: str,
         record_path: list | None = None,
         datetime_col: str = "dateTime",
     ) -> pd.DataFrame:
@@ -106,8 +81,10 @@ class NWISFrame:
                 "value",
             ]
 
+        meta = fromdict(cls=NWISjson, d=jdata)
+
         dataframe = pd.json_normalize(
-            rdata,
+            jdata,
             record_path=record_path,
         )
 
@@ -123,7 +100,7 @@ class NWISFrame:
 
         dataframe = dataframe.tz_localize(None)
         dataframe["value"] = pd.to_numeric(dataframe["value"])
-        return dataframe
+        return dataframe, meta
 
     @staticmethod
     def item_generator(data, key):
@@ -136,23 +113,6 @@ class NWISFrame:
         elif isinstance(data, list):
             for item in data:
                 yield from NWISFrame.item_generator(item, key)
-
-    @staticmethod
-    def _remove_nones(**kwargs) -> dict:
-        """Remove kwargs with None as a value.
-
-        Returns
-        -------
-        dict
-            kwargs with values that are not None.
-
-        Notes
-        -----
-        This function will not remove invalid NWIS query parameter names
-        or values.  The duty of submitting valid query parameter, value
-        combinations falls on the user.
-        """
-        return {query_param: value for query_param, value in kwargs.items() if value is not None}
 
     @classmethod
     def get_nwis(
@@ -187,14 +147,15 @@ class NWISFrame:
         """
         url = cls._base_urls[service]
 
-        json_data = cls.get_requests_data(url=url, params=kwargs)
-        dataframe = cls.process_nwis_response(json_data)
-        # TODO function to pull json_data into metadictionary
+        json_data = get_requests_data(url=url, params=kwargs)
+        dataframe, meta = cls.process_nwis_response(json_data)
 
-        return NWISFrame(dataframe, json_data)
+        return NWISFrame(dataframe, meta)
 
     @classmethod
-    def _merge_kwargs(cls, format, sites, startDT, endDT, parameterCd, siteStatus, access, kwargs):
+    def _merge_kwargs(
+        cls, format, sites, startDT, endDT, parameterCd, siteStatus, access, kwargs: dict
+    ):
         defaults = {
             "format": format,
             "sites": sites,
@@ -245,5 +206,5 @@ if __name__ == "__main__":
         service="dv",
     )
     # data.query_parameters
-    data.url
+    # data.site_name
     pause = 2
