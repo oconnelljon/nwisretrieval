@@ -8,7 +8,7 @@ import pytest
 from dataclass_wizard import JSONWizard
 from rich import print
 
-import nwisretrieval.nwisretrieval as nwis
+import nwisretrieval.nwis as nwis
 
 # from unittest.mock import patch
 # from nwisretrieval.nwisretrieval import NWISJson
@@ -499,6 +499,10 @@ def test_nwis_item_generator(requests_json_return_data):
     assert output_siteName == "Blacktail Creek above Grove Gulch, at Butte, MT"
 
 
+# def test_get_nwis(mocker):
+#     mocker.patch("nwis.get_requests_data", return_value=)
+
+
 def test_experiment():
     string = """
     {
@@ -571,131 +575,15 @@ def test_experiment():
         }
         data = fromdict(cls=NWISjson, d=mouse)
     return
-    # instance2 = NWISJasn.from_json(string2)
-    # assert instance1 == instance2
 
 
 if __name__ == "__main__":
-    string = """
-    {
-      "my_str": 20,
-      "ListOFINT": ["1", "2", 3],
-      "isActiveTupleee": ["true", false, 1]
-    }
-    """
-    string2 = """
-    {
-      "my_str": 20,
-      "ListOFINT": ["1", "2", {"alpha": "bravo"}],
-      "isActiveTupleee": ["true", false, 1]
-    }
-    """
-
-    from dataclasses import dataclass, field
-    from dataclass_wizard import JSONWizard, fromdict, LoadMeta
-    from typing import Dict
-
-    # @dataclass
-    # class NWISJasn(JSONWizard):
-    #     my_str: str | None
-    #     is_active_tupleee: tuple[bool, ...]
-    #     list_of_int: list[int] = field(default_factory=list)
-    from typing import List
-
-    @dataclass
-    class NWISObject:
-        ...
-
-    @dataclass
-    class TimeParam(NWISObject):
-        begin_date_time: str
-        end_date_time: str
-
-    @dataclass
-    class Criteria(NWISObject):
-        location_param: str
-        variable_param: str
-        time_param: TimeParam
-
-    @dataclass
-    class Note(NWISObject):
-        value: str
-
-    @dataclass
-    class TimeRange(Note):
-        ...
-
-    @dataclass
-    class MethodID(Note):
-        ...
-
-    @dataclass
-    class RequestDT(Note):
-        ...
-
-    @dataclass
-    class RequestID(Note):
-        ...
-
-    @dataclass
-    class Disclaimer(Note):
-        ...
-
-    @dataclass
-    class Server(Note):
-        ...
-
-    @dataclass
-    class Sites(Note):
-        ...
-
-    @dataclass
-    class QueryInfo(NWISObject):
-        query_url: str
-        criteria: Criteria
-        note: list[Sites | TimeRange | MethodID | RequestDT | RequestID | Disclaimer | Server]
-
-    @dataclass
-    class Value(NWISObject):
-        query_info: QueryInfo
-        time_series: str
-
-    @dataclass
-    class NWISjson(NWISObject, JSONWizard):
-        class _(JSONWizard.Meta):
-            # Set tag key in JSON object; defaults to '__tag__' if not specified.
-            tag_key = "title"
-            auto_assign_tags = True
-
-        name: str
-        declared_type: str
-        scope: str
-        value: Value
-        nil: str
-        global_scope: str
-        type_substituted: str
-
-
-    # LoadMeta(key_transform="CAMEL").bind_to(NWISjson)
-    # @dataclass
-    # class NWIS(JSONWizard):
-    #     name: str
-    #     declared_type: str
-    #     scope: str
-    #     value: str  # Value
-    #     nil: str
-    #     global_scope: str
-    #     type_substituted: str
-
     with open(
         "tests/test_data/get_nwis_site=12340500_service=dv_parameterCd=00060_startDT=20230101_endDt=20230401_format=json.json",
         "r",
         encoding="utf-8",
     ) as f:
         jdata = json.load(f)
-
-        data = fromdict(cls=NWISjson, d=jdata)
-        cat = 2
 
         mouse = {
             "levels": [

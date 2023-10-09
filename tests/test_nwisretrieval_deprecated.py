@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import pandas as pd
 import pandas.testing as pd_testing
-from nwisretrieval.nwisretrieval import NWISFrame
+from nwisretrieval.nwis import NWISFrame
 from unittest.mock import patch
 from rich import print
 
