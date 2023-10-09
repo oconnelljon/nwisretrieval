@@ -2,9 +2,7 @@ from __future__ import annotations
 import pandas as pd
 import requests
 import sentinel
-from requests.models import Response
-from dataclass_wizard import JSONWizard, fromlist, fromdict
-from dataclasses import dataclass
+from dataclass_wizard import fromdict
 from nwisretrieval.schema_nwis_ts import NWISjson
 
 
